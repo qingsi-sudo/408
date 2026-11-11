@@ -1,0 +1,1012 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="description" content="408 整机地图：一张可缩放的计算机内部结构大图，点部件学知识点，操作系统流程逐步演示。"><style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style></head><body>
+<title>408 整机地图</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@600;900&family=Noto+Sans+SC:wght@400;500;700&display=swap">
+<style>
+/* 布局：顶栏 / 一张可缩放的整机大图 + 右侧讲解面板。浅色工程图风格：上半是内存里的软件，下半是一块电路板。刻意单主题。 */
+:root{
+  color-scheme:light;
+  --ink:#f4f6f8; --stage:#eef1f5; --panel:#ffffff; --raise:#eef1f5; --line:#dfe4ea; --line2:#c3ccd7;
+  --fg:#18212c; --fg2:#445162; --muted:#7a8696;
+  --gold:#b26a00; --red:#c8452f; --blue:#2463b0; --jade:#16805f;
+  --board:#1f5f4c; --board2:#174a3b; --trace:#d8b24a; --chip:#2e3945; --chip2:#3d4a59;
+  --serif:"Noto Serif SC","Songti SC","STSong","SimSun",serif;
+  --sans:"Noto Sans SC","PingFang SC","Hiragino Sans GB","Microsoft YaHei",system-ui,sans-serif;
+}
+html,body{height:100%}
+[hidden]{display:none!important}
+body{margin:0;background:var(--ink);color:var(--fg);font-family:var(--sans);font-size:14px;line-height:1.6;-webkit-font-smoothing:antialiased}
+button{font:inherit;color:inherit}
+button:focus-visible,input:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+.app{height:100%;display:grid;grid-template-columns:minmax(0,1fr) 430px;grid-template-rows:auto minmax(0,1fr);grid-template-areas:"top top" "stage side"}
+.top{grid-area:top;display:flex;align-items:center;gap:10px 16px;flex-wrap:wrap;padding-block:10px;padding-left:max(18px,env(safe-area-inset-left,0px));padding-right:max(18px,env(safe-area-inset-right,0px));border-bottom:1px solid var(--line)}
+.brand{font-family:var(--serif);font-weight:900;font-size:17px;letter-spacing:.06em;white-space:nowrap}
+.brand i{font-style:normal;color:var(--gold)}
+.search{position:relative;flex:0 1 260px;min-width:150px}
+.search input{width:100%;box-sizing:border-box;background:var(--raise);border:1px solid var(--line);border-radius:6px;color:var(--fg);padding:7px 10px;font:inherit;font-size:13px}
+.search input::placeholder{color:var(--muted)}
+.results{position:absolute;left:0;right:0;top:calc(100% + 6px);background:var(--panel);border:1px solid var(--line2);border-radius:8px;box-shadow:0 18px 40px rgba(20,30,45,.18);max-height:60vh;overflow:auto;z-index:40;padding:4px}
+.results button{display:block;width:100%;text-align:left;background:none;border:0;padding:7px 9px;border-radius:5px;cursor:pointer;font-size:13px}
+.results button:hover{background:var(--raise)}
+.results small{color:var(--muted);margin-right:8px}
+.tools{margin-left:auto;display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.tog{display:inline-flex;align-items:center;gap:6px;background:var(--raise);border:1px solid var(--line);border-radius:6px;padding:5px 10px;cursor:pointer;font-size:13px;color:var(--fg2);white-space:nowrap}
+.tog[aria-pressed=true],.tog[data-lv="2"],.tog[data-lv="3"]{border-color:#ff9d00;color:var(--gold);background:#fff6e5}
+.tog .dot{width:7px;height:7px;border-radius:50%;background:var(--line2)}
+.tog[aria-pressed=true] .dot{background:var(--gold);box-shadow:0 0 8px var(--gold)}
+/* 大图 */
+.stage{grid-area:stage;position:relative;overflow:hidden;min-height:0;background:var(--stage);background-image:linear-gradient(var(--line) 1px,transparent 1px),linear-gradient(90deg,var(--line) 1px,transparent 1px);background-size:32px 32px}
+#map{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none;cursor:grab}
+#map.drag{cursor:grabbing}
+#map text{font-family:var(--sans);pointer-events:none}
+.zone{stroke-width:1.5}
+.zt{font-size:18px;font-weight:700;letter-spacing:.08em}
+.zs{font-size:13px;fill:var(--muted)}
+.cmp{fill:var(--panel);stroke:var(--line2);stroke-width:1.6;cursor:pointer;transition:fill .3s,stroke .3s,opacity .3s}
+.cmp.box{fill:rgba(255,255,255,.55);cursor:default}
+.cmp.h{fill:var(--chip2);stroke:#6a7a8e}
+.cmp.h.box{fill:var(--chip);stroke:#10161d;stroke-width:2.5}
+.cmp:not(.box):hover{stroke:var(--gold);stroke-width:2.6}
+.cmp.hot{stroke:#ff9d00;stroke-width:4;fill:#fff1d2}
+.cmp.h.hot{fill:#7a5a17;stroke:#ffc04d}
+.cmp.sel{stroke:#ff9d00;stroke-width:3.4}
+.playing .cmp:not(.hot):not(.box){opacity:.5}
+.playing .cmp.used:not(.hot){opacity:1}
+.cn{font-size:14px;font-weight:700;fill:var(--fg)}
+.cn.h{fill:#f1f4f8}
+.cn.c{font-size:15px;fill:var(--fg2);letter-spacing:.08em}
+.cn.c.h{fill:#aeb9c7}
+.cv{font-size:12.5px;font-weight:700;fill:var(--gold)}
+.cv.h{fill:#ffcf70}
+@keyframes flash{from{fill:#ff3d00}to{fill:var(--gold)}}
+@keyframes flashh{from{fill:#fff}to{fill:#ffcf70}}
+.cv.flash{animation:flash 1.1s} .cv.h.flash{animation:flashh 1.1s}
+.wire{fill:none;stroke:var(--trace);stroke-width:2.4;stroke-linejoin:round}
+.irq{fill:none;stroke:#ff8f7a;stroke-width:2;stroke-dasharray:6 5}
+.call{fill:none;stroke:#9aa7b6;stroke-width:1.6}
+.wl{font-size:12px;font-weight:700}
+.pin{fill:#b9c2cc}
+.bdg{fill:#ff9d00;stroke:#fff;stroke-width:1.5} .bdgt{font-size:10.5px;fill:#fff;font-weight:700;text-anchor:middle;dominant-baseline:central}
+@keyframes ring2{from{opacity:.9;transform:scale(.6)}to{opacity:0;transform:scale(2)}}
+.ring{transform-box:fill-box;transform-origin:center;animation:ring2 1.4s ease-out infinite}
+.hint{position:absolute;left:max(16px,env(safe-area-inset-left,0px));top:12px;font-size:12px;color:var(--muted);background:rgba(255,255,255,.92);border:1px solid var(--line2);border-radius:999px;padding:4px 12px;pointer-events:none}
+.zoom{position:absolute;right:14px;bottom:14px;display:flex;flex-direction:column;gap:4px;z-index:5}
+.zoom button{width:34px;height:34px;border-radius:6px;background:#fff;border:1px solid var(--line2);cursor:pointer;font-size:15px;color:var(--fg2);display:grid;place-items:center;padding:0}
+.capbar{position:absolute;left:14px;right:60px;bottom:14px;background:rgba(255,255,255,.97);box-shadow:0 8px 24px rgba(20,30,45,.14);border:1px solid var(--line2);border-left:4px solid #ff9d00;border-radius:0 8px 8px 0;padding:10px 14px;font-size:15.5px;font-weight:500;line-height:1.55;display:flex;gap:10px;align-items:center;z-index:4}
+.capbar b{color:var(--gold);white-space:nowrap;font-variant-numeric:tabular-nums}
+.capbar .btns{margin-left:auto;display:flex;gap:6px;flex:none}
+.capbar button{background:var(--raise);border:1px solid var(--line2);border-radius:6px;padding:6px 12px;cursor:pointer;font-size:13px;color:var(--fg2);white-space:nowrap}
+.capbar button.pri{background:#ff9d00;border-color:#ff9d00;color:#fff;font-weight:700}
+.inset{position:absolute;left:14px;top:14px;width:min(820px,calc(100% - 28px));background:rgba(255,255,255,.98);border:1px solid var(--line2);border-radius:10px;box-shadow:0 20px 50px rgba(20,30,45,.22);z-index:3;padding:6px 8px 2px}
+.inset .ih{font-size:11.5px;color:var(--muted);padding:4px 8px 0;letter-spacing:.06em}
+#sv{width:100%;display:block;aspect-ratio:800/430;cursor:pointer}
+/* SVG 元素 */
+#sv text{font-family:var(--sans)}
+#sv [data-s]{opacity:0;transition:opacity .55s ease,transform .55s cubic-bezier(.2,1.2,.4,1)}
+#sv [data-s].on{opacity:1}
+#sv .pop{transform-box:fill-box;transform-origin:center;transform:scale(.7)}
+#sv .pop.on{transform:scale(1)}
+#sv .rise{transform:translateY(16px)} #sv .rise.on{transform:none}
+#sv .draw{stroke-dasharray:1;stroke-dashoffset:1;transition:stroke-dashoffset 1s ease,opacity .2s}
+#sv .draw.on{stroke-dashoffset:0}
+#sv .bx{fill:var(--panel);stroke-width:1.6}
+#sv .t1{font-weight:700;fill:var(--fg);text-anchor:middle;dominant-baseline:central}
+#sv .t2{fill:var(--fg2);text-anchor:middle;dominant-baseline:central}
+#sv .lb{font-weight:700;text-anchor:middle;dominant-baseline:central;paint-order:stroke;stroke:var(--stage);stroke-width:5px;stroke-linejoin:round}
+#sv .end{font-family:var(--serif);font-weight:900;fill:var(--gold);text-anchor:middle;dominant-baseline:central}
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes glow{0%,100%{opacity:.25}50%{opacity:.9}}
+#sv .glow.on{animation:glow 1.6s ease-in-out infinite}
+#sv .cmp,#mini .cmp{fill:var(--panel);stroke:var(--line2);stroke-width:1.4;transition:all .35s}
+#sv .cmp.big,#mini .cmp.big{fill:rgba(21,24,29,.45)}
+#sv .cmp.hot{stroke:var(--gold);stroke-width:3;fill:rgba(224,168,78,.18)}
+#sv .cmp.dim{opacity:.32}
+#sv .cmp-g.hot line{stroke-width:4.5;opacity:1}
+#mini .cmp{stroke-width:5;stroke:var(--line2)} #mini .cmp.hot{fill:var(--gold);stroke:var(--gold)} #mini .cmp-g.hot line{stroke-width:9;opacity:1}
+#sv .cn{font-size:12.5px;fill:var(--fg2);font-weight:700} #sv .cn.big{font-size:13px;fill:var(--muted);letter-spacing:.08em}
+#sv .cv{font-size:12.5px;fill:var(--gold);font-weight:700;font-family:ui-monospace,Menlo,Consolas,monospace}
+@keyframes flash{from{fill:#fff}to{fill:var(--gold)}} #sv .cv.flash{animation:flash 1.1s}
+@keyframes ring2{from{opacity:.9;transform:scale(.6)}to{opacity:0;transform:scale(1.9)}} #sv .ring{transform-box:fill-box;transform-origin:center;animation:ring2 1.4s ease-out infinite}
+#sv .sedge{stroke:var(--line2);stroke-width:2;color:var(--line2);transition:all .3s} #sv .sedge.seen{stroke:var(--fg2);color:var(--fg2)} #sv .sedge.hot{stroke:var(--gold);stroke-width:3.6;color:var(--gold)}
+#sv .selab{font-size:12.5px;fill:var(--muted);text-anchor:middle;dominant-baseline:central;paint-order:stroke;stroke:var(--stage);stroke-width:4px} #sv .selab.hot{fill:var(--gold);font-weight:700} #sv .selab.seen{fill:var(--fg2)}
+#sv .snode{fill:var(--panel);stroke:var(--blue);stroke-width:1.8;transition:all .3s} #sv .snode.seen{stroke:var(--jade);fill:rgba(95,191,157,.16)} #sv .snode.hot{stroke:var(--gold);stroke-width:3.6;fill:rgba(224,168,78,.22)}
+#sv .sord{font-size:15px;font-weight:700;fill:var(--gold);text-anchor:middle;dominant-baseline:central}
+#sv .gcell{fill:transparent;stroke:var(--line);transition:fill .3s} #sv .gcell.new{stroke:var(--gold);stroke-width:2}
+#sv .gcol{fill:transparent} #sv .gcol.hot{fill:rgba(224,168,78,.08)}
+#sv .bar{fill:var(--blue);opacity:.85;transition:fill .3s} #sv .bar.hl{fill:var(--red)} #sv .bar.piv{fill:var(--gold)} #sv .bar.done{fill:var(--jade)}
+.mini{margin-left:auto;display:flex;flex-direction:column;align-items:center;gap:2px;flex:none}
+.mini svg{width:132px;height:71px;border:1px solid var(--line2);border-radius:6px;background:var(--ink)}
+.mini span{font-size:10.5px;color:var(--muted);max-width:150px;text-align:center;line-height:1.3}
+
+/* 面板 */
+.side{grid-area:side;border-left:1px solid var(--line);background:var(--panel);display:flex;flex-direction:column;min-height:0}
+.card{flex:1;overflow:auto;padding:18px 22px 16px;min-height:0;overscroll-behavior:contain}
+.back{background:none;border:0;color:var(--muted);cursor:pointer;padding:0;font-size:12.5px;margin-bottom:10px}
+.back:hover{color:var(--fg)}
+.kick{font-size:12px;color:var(--gold);letter-spacing:.14em;font-weight:700}
+.ttl{font-family:var(--serif);font-weight:900;font-size:24px;line-height:1.3;margin:6px 0 10px;text-wrap:balance}
+.lvtag{font-size:12px;border-radius:4px;padding:1px 8px;font-weight:700;white-space:nowrap;display:inline-block}
+.lvtag.l3{background:#ff9d00;color:#fff} .lvtag.l2{border:1px solid var(--gold);color:var(--gold)} .lvtag.l1{border:1px solid var(--line2);color:var(--muted)}
+.desc{font-size:14.5px;line-height:1.8;color:var(--fg2);margin:0 0 6px}
+.sec{padding:14px 0 8px;border-top:1px solid var(--line);margin-top:10px}
+.sec h3{margin:0 0 8px;font-size:12px;font-weight:700;letter-spacing:.16em;color:var(--gold)}
+.sec h3.r{color:var(--red)} .sec h3.b{color:var(--blue)} .sec h3.j{color:var(--jade)} .sec h3.m{color:var(--muted)}
+.sec p{margin:0;font-size:14.5px;line-height:1.85}
+mark{background:#fff1cf;color:#7a4a00;font-weight:700;border-radius:3px;padding:0 3px}
+.blank mark{color:transparent;background:#ffe2a6;cursor:pointer;user-select:none}
+.blank mark.show{color:#7a4a00;background:#fff1cf}
+.errbox{background:#fdf0ed;border:1px solid #f1c3b9;border-radius:6px;padding:10px 12px;font-size:14px;line-height:1.75}
+.ll{display:grid;gap:2px}
+.ll button{display:flex;gap:8px;align-items:baseline;text-align:left;background:none;border:0;border-radius:6px;padding:7px 8px;cursor:pointer;font-size:13.5px;color:var(--fg2);line-height:1.45}
+.ll button:hover{background:var(--raise);color:var(--fg)}
+.ll button.lv3{color:var(--fg);font-weight:500}
+.ll button.lv1{opacity:.65}
+.ll .st{flex:none;width:12px;color:var(--gold);font-size:11px}
+.ll .k{margin-left:auto;flex:none;font-size:11px;color:var(--muted);white-space:nowrap}
+.ll .rd{color:var(--jade)}
+.gh{margin:16px 0 4px;font-size:11px;letter-spacing:.16em;color:var(--muted);font-weight:700}
+.steps{display:grid;gap:4px;margin-top:6px}
+.sp{display:block;width:100%;text-align:left;background:none;border:1px solid transparent;border-radius:8px;padding:8px 10px;cursor:pointer;color:var(--fg2);font-size:13.5px;line-height:1.6}
+.sp:hover{background:var(--raise)}
+.sp.done{color:var(--fg2)}
+.sp.on{background:#fff8ea;border-color:#ff9d00;color:var(--fg)}
+.sp .c{display:block;font-weight:500}
+.sp .w,.sp .t{display:none;margin-top:6px;font-size:13.5px;line-height:1.75}
+.sp.on .w,.sp.on .t,.all .sp .w,.all .sp .t{display:block}
+.sp .w{color:var(--fg2);padding-left:10px;border-left:2px solid var(--blue)}
+.sp .w::before{content:"底层原理　";color:var(--blue);font-weight:700;font-size:12px}
+.sp .t{color:var(--fg);padding-left:10px;border-left:2px solid var(--red)}
+.sp .t::before{content:"易错　";color:var(--red);font-weight:700;font-size:12px}
+.acts{display:flex;gap:6px;flex-wrap:wrap;margin:10px 0 4px}
+.acts button{background:var(--raise);border:1px solid var(--line2);border-radius:6px;padding:6px 11px;cursor:pointer;font-size:12.5px;color:var(--fg2)}
+.acts button:hover{color:var(--fg);border-color:var(--muted)}
+.acts button[aria-pressed=true]{color:var(--gold);border-color:var(--gold)}
+.src{padding:9px 22px 12px;font-size:11px;color:var(--muted);border-top:1px solid var(--line)}
+.src b{color:var(--fg);font-weight:500}
+@keyframes rise{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+.card.anim>*{animation:rise .4s ease-out both}
+@media (max-width:1100px){.app{grid-template-columns:minmax(0,1fr) 360px}}
+@media (max-width:900px){
+  .app{height:auto;grid-template-columns:minmax(0,1fr);grid-template-rows:auto;grid-template-areas:"top" "stage" "side"}
+  .stage{height:min(82vw,560px);position:sticky;top:0;z-index:10}
+  .side{border-left:0;border-top:1px solid var(--line)}
+  .card{overflow:visible}
+  .tools{margin-left:0}
+  .capbar{font-size:13.5px;right:54px;padding:8px 10px;flex-wrap:wrap}
+  .hint{display:none}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+
+<div class="app" id="app">
+  <header class="top">
+    <div class="brand">408<i> · </i>整机地图</div>
+    <div class="search"><input id="q" type="search" placeholder="搜知识点、部件、关键词…" autocomplete="off" aria-label="搜索"><div class="results" id="res" hidden></div></div>
+    <div class="tools">
+      <button class="tog" id="tLv" title="按重要度筛选">全部知识点</button>
+      <button class="tog" id="tBlank" aria-pressed="false" title="把关键词挖空，点一下显示（B）"><span class="dot"></span>挖空</button>
+      <button class="tog" id="tPlay" aria-pressed="false" title="自动播完一个接下一个（空格）"><span class="dot"></span>连播</button>
+    </div>
+  </header>
+  <section class="stage" id="stage">
+    <svg id="map" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet"></svg>
+    <div class="hint" id="hint">点任意部件进去学 · 双指或滚轮缩放 · 拖动平移</div>
+    <div class="inset" id="inset" hidden><div class="ih" id="ih"></div><svg id="sv" viewBox="0 0 800 430" xmlns="http://www.w3.org/2000/svg"></svg></div>
+    <div class="capbar" id="capbar" hidden><b id="capn"></b><span id="capt"></span><div class="btns"><button id="cPrev">◀</button><button class="pri" id="cNext">下一步 ▶</button></div></div>
+    <div class="zoom"><button id="zIn" aria-label="放大">＋</button><button id="zOut" aria-label="缩小">－</button><button id="zFit" aria-label="看全图" title="看全图">⌂</button></div>
+  </section>
+  <aside class="side">
+    <div class="card" id="card"></div>
+    <div class="src">已掌握 <b id="nRead">0</b>/<span id="nAll"></span> · 记录只存在这台设备的浏览器里</div>
+  </aside>
+</div>
+
+<script>
+const $=s=>document.querySelector(s);
+const NS='http://www.w3.org/2000/svg';
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const fmt=s=>esc(s).replace(/==(.+?)==/g,'<mark>$1</mark>');
+const plain=s=>(s||'').replace(/==/g,'');
+const C={red:'var(--red)',gold:'var(--gold)',blue:'var(--blue)',jade:'var(--jade)'};
+const LV={3:'★★★ 必背',2:'★★ 重要',1:'★ 了解'};
+const RM=matchMedia('(prefers-reduced-motion: reduce)').matches;
+const ld=k=>{try{return new Set(JSON.parse(localStorage.getItem(k)||'[]'))}catch(e){return new Set()}};
+const sv_=(k,s)=>{try{localStorage.setItem(k,JSON.stringify([...s]))}catch(e){}};
+const READ=ld('m408.read');
+const tw=(s,fs)=>[...String(s)].reduce((a,c)=>a+(c.charCodeAt(0)>255?fs:fs*.56),0);
+const fit=(s,w,max)=>Math.max(11,Math.min(max,Math.floor(w/Math.max(1,tw(s,1)))));
+function box(x,y,w,h,t,sub,c,s,cls='pop'){const f=fit(t,w-24,24),f2=sub?fit(sub,w-16,13):0;
+  return `<g data-s="${s}" class="${cls}"><rect class="bx" x="${x}" y="${y}" width="${w}" height="${h}" rx="12" stroke="${c}"/><rect x="${x}" y="${y}" width="${w}" height="5" rx="2.5" fill="${c}"/>
+  <text class="t1" x="${x+w/2}" y="${y+h/2-(sub?10:0)}" font-size="${f}">${esc(t)}</text>${sub?`<text class="t2" x="${x+w/2}" y="${y+h/2+18}" font-size="${f2}">${esc(sub)}</text>`:''}</g>`}
+function arrow(d,c,s,id){return `<path id="${id}" data-s="${s}" class="draw" d="${d}" pathLength="1" fill="none" stroke="${c}" stroke-width="3.2" stroke-linecap="round" marker-end="url(#ah)" style="color:${c}"/>
+  <circle data-s="${s}" r="5" fill="${c}"><animateMotion dur="2.4s" repeatCount="indefinite" rotate="auto"><mpath href="#${id}"/></animateMotion></circle>`}
+function label(x,y,t,c,s,fs=17){return `<text data-s="${s}" class="lb rise" x="${x}" y="${y}" font-size="${fs}" fill="${c}">${esc(t)}</text>`}
+function note(x,y,t,s,fs=13){return `<text data-s="${s}" class="t2 rise" x="${x}" y="${y}" font-size="${Math.min(fs,fit(t,760,fs))}">${esc(t)}</text>`}
+function ending(t,s){return `<g data-s="${s}" class="pop"><rect x="${400-tw(t,fit(t,720,21))/2-22}" y="378" width="${tw(t,fit(t,720,21))+44}" height="40" rx="20" fill="rgba(224,168,78,.1)" stroke="var(--gold)"/><text class="end" x="400" y="398" font-size="${fit(t,720,21)}">${esc(t)}</text></g>`}
+const DEFS=`<defs><marker id="ah" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0,0L10,5L0,10z" fill="context-stroke"/></marker></defs>`;
+function wrap(t,w,fs=14){const out=[];let cur='';for(const ch of t){if(tw(cur+ch,fs)>w&&cur){out.push(cur);cur=ch}else cur+=ch}if(cur)out.push(cur);return out.slice(0,3)}
+const tweens=new WeakMap();
+function tween(el,attr,to,dur){if(!el)return;const from=parseFloat(el.getAttribute(attr))||0;if(RM||Math.abs(from-to)<.5){el.setAttribute(attr,to);return}
+  const key=attr,tok=Symbol();let m=tweens.get(el);if(!m){m={};tweens.set(el,m)}m[key]=tok;const t0=performance.now();
+  (function f(now){if(m[key]!==tok)return;const k=Math.min(1,(now-t0)/dur),e=k<.5?4*k*k*k:1-Math.pow(-2*k+2,3)/2;el.setAttribute(attr,from+(to-from)*e);k<1&&requestAnimationFrame(f)})(t0)}
+
+
+/* ===== 408 动画引擎：整机流程 flow / 时序 seq / 状态与遍历 states / 表格 grid / 封装 layers / 柱形 bars ===== */
+const MC={cpu:[30,24,360,262,'CPU'],cu:[48,58,150,56,'控制器 CU'],alu:[212,58,160,56,'运算器 ALU'],pc:[48,128,70,46,'PC'],ir:[128,128,70,46,'IR'],acc:[212,128,160,46,'ACC'],mar:[48,196,150,50,'MAR'],mdr:[212,196,160,50,'MDR'],
+ cache:[410,40,92,92,'Cache'],mmu:[410,150,92,72,'MMU / TLB'],mem:[530,24,240,236,'主存储器'],
+ kbd:[40,356,110,54,'键盘（输入）'],scr:[168,356,116,54,'显示器（输出）'],dma:[318,356,128,54,'I/O 接口 / DMA'],disk:[478,356,124,54,'磁盘（辅存）'],nic:[634,356,126,54,'网卡'],bus:[30,292,740,40,'']};
+const MNAME={cpu:'CPU',cu:'控制器',alu:'运算器',pc:'程序计数器 PC',ir:'指令寄存器 IR',acc:'累加器 ACC',mar:'MAR',mdr:'MDR',cache:'Cache',mmu:'MMU / TLB',mem:'主存',kbd:'输入设备',scr:'输出设备',dma:'I/O 接口',disk:'磁盘',nic:'网卡',bus:'总线'};
+const ctrOld=id=>{const m=MC[id];return[m[0]+m[2]/2,m[1]+m[3]/2]};
+function machine(mini,hl=[]){let s='';
+  for(const id in MC){const [x,y,w,h,n]=MC[id];if(id==='bus'){s+=`<g id="${mini?'':'c_bus'}" class="cmp-g${hl.includes('bus')?' hot':''}">`+[['地址总线',300],['数据总线',312],['控制总线',324]].map(([t,yy],i)=>`<line x1="30" y1="${yy}" x2="770" y2="${yy}" stroke="${['var(--blue)','var(--jade)','var(--gold)'][i]}" stroke-width="${mini?3:2.2}" opacity=".75"/>${mini?'':`<text x="776" y="${yy}" font-size="9.5" fill="var(--muted)" dominant-baseline="central">${t[0]}</text>`}`).join('')+
+      (mini?'':['pc','mar','mdr','cache','mem','kbd','scr','dma','disk','nic'].map(k=>{const c=ctrOld(k),top=MC[k][1]<292;return ['mar','mdr','mem','kbd','scr','dma','disk','nic'].includes(k)?`<line x1="${c[0]}" y1="${top?MC[k][1]+MC[k][3]:MC[k][1]}" x2="${c[0]}" y2="${top?298:326}" stroke="var(--line2)" stroke-width="1.4"/>`:''}).join(''))+`</g>`;continue}
+    const big=id==='cpu'||id==='mem';
+    s+=`<rect ${mini?'':`id="c_${id}"`} class="cmp${big?' big':''}${hl.includes(id)?' hot':''}" x="${x}" y="${y}" width="${w}" height="${h}" rx="${big?12:7}"/>`;
+    if(!mini){s+=`<text class="${big?'cn big':'cn'}" x="${big?x+12:x+w/2}" y="${big?y+17:y+(id==='cu'||id==='alu'?h/2:15)}" ${big?'':'text-anchor="middle"'} dominant-baseline="central">${n}</text>`;
+      if(!big&&id!=='cu'&&id!=='alu')s+=`<text id="v_${id}" class="cv" x="${x+w/2}" y="${y+h-13}" text-anchor="middle" dominant-baseline="central"></text>`;
+      if(id==='cu'||id==='alu')s+=`<text id="v_${id}" class="cv" x="${x+w/2}" y="${y+h-11}" text-anchor="middle" dominant-baseline="central"></text>`}}
+  if(!mini){for(let r=0;r<6;r++)s+=`<rect x="546" y="${52+r*32}" width="208" height="26" rx="4" fill="none" stroke="var(--line)" /><text id="m_${r}" class="cv" x="650" y="${65+r*32}" text-anchor="middle" dominant-baseline="central"></text>`}
+  return s}
+function minimap(at){const hl=at||[];return `<g transform="translate(596,6) scale(.25)" opacity=".95"><rect x="10" y="6" width="780" height="420" rx="16" fill="var(--ink)" stroke="var(--line2)" stroke-width="4"/>${machine(true,hl)}</g><text x="694" y="126" font-size="11" fill="var(--muted)" text-anchor="middle">位置：${esc(hl.map(k=>MNAME[k]).join(' · '))}</text>`}
+function tweenXY(g,x,y,dur){const fx=+g.dataset.x||x,fy=+g.dataset.y||y;const tok=Symbol();g._t=tok;if(RM||!dur){g.dataset.x=x;g.dataset.y=y;g.setAttribute('transform',`translate(${x},${y})`);return}
+  const t0=performance.now();(function f(now){if(g._t!==tok)return;const k=Math.min(1,(now-t0)/dur),e=k<.5?4*k*k*k:1-Math.pow(-2*k+2,3)/2;const cx=fx+(x-fx)*e,cy=fy+(y-fy)*e;g.dataset.x=cx;g.dataset.y=cy;g.setAttribute('transform',`translate(${cx.toFixed(1)},${cy.toFixed(1)})`);k<1&&requestAnimationFrame(f)})(t0)}
+const T={
+flow(o){return{svg:machine(false)+`<g id="tok" opacity="0"><circle r="9" fill="var(--gold)"/><circle r="15" fill="none" stroke="var(--gold)" class="ring"/><g id="tokl"><rect id="tokb" x="14" y="-13" height="26" rx="13" fill="var(--gold)"/><text id="tokt" x="26" y="0" font-size="13" font-weight="700" fill="#0e1013" dominant-baseline="central"></text></g></g>`,
+  caps:o.steps.map(s=>s.cap),
+  onStep(i,sv){const v={...(o.init||{})};for(let k=0;k<=i;k++)Object.assign(v,o.steps[k].set||{});
+    sv.querySelectorAll('.cv').forEach(t=>{const id=t.id.slice(2);const nv=v[id]||'';if(t.textContent!==nv){t.textContent=nv;t.classList.remove('flash');void t.getBBox;t.classList.add('flash')}});
+    const st=o.steps[i],hl=st.hl||[];sv.querySelectorAll('.cmp,.cmp-g').forEach(r=>{const id=r.id.slice(2);r.classList.toggle('hot',hl.includes(id));r.classList.toggle('dim',!!o.use&&!o.use.includes(id)&&id!=='cpu')});
+    const tok=sv.querySelector('#tok');if(st.mv){const a=ctrOld(st.mv[0]),b=ctrOld(st.mv[1]);tok.setAttribute('opacity',1);const t=sv.querySelector('#tokt');t.textContent=st.mv[2]||'';sv.querySelector('#tokb').setAttribute('width',tw(st.mv[2]||'',13)+24);
+      sv.querySelector('#tokl').setAttribute('transform',`translate(${-(tw(st.mv[2]||'',13)+24)/2-14},-30)`);
+      tok._t=null;tok.dataset.x=a[0];tok.dataset.y=a[1];tok.setAttribute('transform',`translate(${a[0]},${a[1]})`);setTimeout(()=>tweenXY(tok,b[0],b[1],1100),120)}else tok.setAttribute('opacity',0)}}},
+seq(o){const n=o.lanes.length,X=i=>n===1?400:90+i*(620/(n-1)),m=o.msgs.length,rh=Math.min(58,292/m);let s='';
+  o.lanes.forEach((l,i)=>{s+=`<line x1="${X(i)}" y1="52" x2="${X(i)}" y2="372" stroke="var(--line2)" stroke-dasharray="4 5"/><rect class="bx" x="${X(i)-62}" y="14" width="124" height="38" rx="8" stroke="var(--blue)"/><text class="t1" x="${X(i)}" y="33" font-size="${fit(l,112,15)}">${esc(l)}</text>`});
+  o.msgs.forEach((g,k)=>{const y=74+k*rh,a=X(g.f),b=X(g.t),c=C[g.c]||'var(--gold)';
+    if(g.f===g.t){s+=`<g data-s="${k+1}" class="pop"><rect x="${a-tw(g.txt,13)/2-12}" y="${y-2}" width="${tw(g.txt,13)+24}" height="26" rx="13" fill="var(--panel)" stroke="${c}"/><text class="t1" x="${a}" y="${y+11}" font-size="13" style="fill:${c}">${esc(g.txt)}</text></g>`}
+    else{s+=`<path id="p${k}" data-s="${k+1}" class="draw" pathLength="1" d="M${a+(b>a?6:-6)},${y+6} L${b+(b>a?-10:10)},${y+rh*.42}" fill="none" stroke="${c}" stroke-width="2.6" marker-end="url(#ah)" style="color:${c}" ${g.lost?'stroke-dasharray="none"':''}/>`+
+      `<text data-s="${k+1}" class="lb rise" x="${(a+b)/2}" y="${y-3}" font-size="${Math.min(13.5,fit(g.txt,Math.abs(b-a)-10,13.5))}" fill="${c}">${esc(g.txt)}</text>`+(g.lost?`<text data-s="${k+1}" class="lb" x="${b+(b>a?-40:40)}" y="${y+rh*.3}" font-size="20" fill="var(--red)">✕</text>`:'')}
+    if(g.note)g.note.forEach(nt=>{const x=X(nt[0]),left=nt[0]===0;s+=`<text data-s="${k+1}" class="rise" x="${left?x-10:x+10}" y="${y+rh*.42+16}" font-size="11.5" fill="var(--jade)" font-weight="700" text-anchor="${left?'end':'start'}">${esc(nt[1])}</text>`})});
+  return{svg:s+ending(o.end,m+1),caps:[...o.msgs.map(g=>g.cap||g.txt),o.end]}},
+states(o){const N={};o.nodes.forEach(d=>N[d.id]=d);let s='';const P=(e)=>{const a=N[e.f],b=N[e.t],dx=b.x-a.x,dy=b.y-a.y,L=Math.hypot(dx,dy),ux=dx/L,uy=dy/L,off=e.b||0,ox=-uy*off,oy=ux*off,r=o.r||40;return[a.x+ux*r+ox,a.y+uy*r+oy,b.x-ux*(r+6)+ox,b.y-uy*(r+6)+oy]};
+  o.edges.forEach((e,i)=>{const p=P(e);s+=`<line id="e${i}" class="sedge" x1="${p[0]}" y1="${p[1]}" x2="${p[2]}" y2="${p[3]}" marker-end="url(#ah)"/>`;if(e.txt)s+=`<text id="el${i}" class="selab" x="${(p[0]+p[2])/2+(e.lx||0)}" y="${(p[1]+p[3])/2+(e.ly||-10)}">${esc(e.txt)}</text>`});
+  o.nodes.forEach(d=>{const r=o.r||40;s+=`<circle id="n_${d.id}" class="snode" cx="${d.x}" cy="${d.y}" r="${r}"/><text class="t1" x="${d.x}" y="${d.y}" font-size="${fit(d.n,r*2-12,17)}">${esc(d.n)}</text><text id="o_${d.id}" class="sord" x="${d.x+r*.8}" y="${d.y-r*.8}"></text>`});
+  s+=`<g id="tok" opacity="0"><circle r="8" fill="var(--gold)"/></g>`+(o.out?`<text id="sout" class="end" x="400" y="398" font-size="20"></text>`:'');
+  return{svg:s+(o.out?'':ending(o.end,o.steps.length+1)),caps:[...o.steps.map(x=>x.cap),o.end],
+   onStep(i,sv){sv.querySelectorAll('.sedge,.selab,.snode').forEach(x=>x.classList.remove('hot','seen'));sv.querySelectorAll('.sord').forEach(x=>x.textContent='');const tok=sv.querySelector('#tok');tok.setAttribute('opacity',0);let ord=[];
+    for(let k=0;k<=Math.min(i,o.steps.length-1);k++){const stp=o.steps[k],cur=k===i;
+      if(stp.e!=null){const el=sv.querySelector('#e'+stp.e);el.classList.add(cur?'hot':'seen');const lb=sv.querySelector('#el'+stp.e);lb&&lb.classList.add(cur?'hot':'seen');
+        if(cur){const p=P(o.edges[stp.e]);tok.setAttribute('opacity',1);tok._t=null;tok.dataset.x=p[0];tok.dataset.y=p[1];tok.setAttribute('transform',`translate(${p[0]},${p[1]})`);setTimeout(()=>tweenXY(tok,p[2],p[3],900),100);sv.querySelector('#n_'+o.edges[stp.e].t).classList.add('hot')}}
+      if(stp.n!=null){sv.querySelector('#n_'+stp.n).classList.add(cur?'hot':'seen');if(stp.visit){ord.push(stp.n);sv.querySelector('#o_'+stp.n).textContent=ord.length}}}
+    if(o.out){sv.querySelector('#sout').textContent=(i>=o.steps.length?o.end+'：':'访问序列：')+ord.map(k=>N[k].n).join(' ')}}}},
+grid(o){const nc=o.cols.length,nr=o.rows.length,LW=o.lw||96,cw=Math.min(o.cw||64,(700-LW)/nc),ch=Math.min(46,250/nr),X0=(800-LW-cw*nc)/2+LW,Y0=o.y0||(150-nr*ch/2+60);let s='';
+  if(o.title)s+=`<text class="t1" x="400" y="34" font-size="17">${esc(o.title)}</text>`;
+  o.cols.forEach((c,j)=>{s+=`<rect id="gc${j}" class="gcol" x="${X0+j*cw}" y="${Y0-34}" width="${cw}" height="${nr*ch+38}" rx="6"/><text class="t1" x="${X0+j*cw+cw/2}" y="${Y0-18}" font-size="${fit(String(c),cw-6,15)}">${esc(c)}</text>`});
+  o.rows.forEach((r,i)=>{s+=`<text class="t2" x="${X0-12}" y="${Y0+i*ch+ch/2}" font-size="13.5" style="text-anchor:end">${esc(r)}</text>`;
+    for(let j=0;j<nc;j++)s+=`<rect id="g${i}_${j}" class="gcell" x="${X0+j*cw+2}" y="${Y0+i*ch+2}" width="${cw-4}" height="${ch-4}" rx="5"/><text id="t${i}_${j}" class="t1" x="${X0+j*cw+cw/2}" y="${Y0+i*ch+ch/2}" font-size="${Math.min(15,ch*.42)}"></text>`});
+  s+=`<text id="gnote" class="t2" x="400" y="${Y0+nr*ch+34}" font-size="14.5"></text>`;
+  const n=o.steps.length;return{svg:s+ending(o.end,n+1),caps:[...o.steps.map(x=>x.cap),o.end],
+   onStep(i,sv){sv.querySelectorAll('.gcell').forEach(c=>{c.style.fill='';c.classList.remove('new')});sv.querySelectorAll('[id^=t]').forEach(t=>{if(/^t\d+_\d+$/.test(t.id)){t.textContent='';t.style.fill=''}});
+    for(let k=0;k<=Math.min(i,n-1);k++)(o.steps[k].set||[]).forEach(([r,c,txt,col])=>{const cell=sv.querySelector(`#g${r}_${c}`),t=sv.querySelector(`#t${r}_${c}`);if(!cell)return;cell.style.fill=col?`color-mix(in srgb, ${C[col]||col} 28%, transparent)`:'';t.textContent=txt;t.setAttribute('font-size',Math.min(15,ch*.42,fit(txt||' ',cw-10,15)));if(k===i)cell.classList.add('new')});
+    const cur=o.steps[Math.min(i,n-1)];sv.querySelectorAll('.gcol').forEach((c,j)=>c.classList.toggle('hot',cur.cur===j&&i<n));sv.querySelector('#gnote').textContent=cur.note||''}}},
+layers(o){const n=o.rows.length,rh=Math.min(58,300/n);let s='';
+  o.rows.forEach((r,i)=>{const y=40+i*rh;let x=250;s+=`<g data-s="${i+1}" class="rise"><text class="t1" x="120" y="${y+rh/2-8}" font-size="16" >${esc(r.n)}</text><text class="t2" x="120" y="${y+rh/2+12}" font-size="12">${esc(r.pdu)}</text>`;
+    r.segs.forEach(([t,c,w])=>{w=w||74;s+=`<rect x="${x}" y="${y+8}" width="${w-3}" height="${rh-18}" rx="6" fill="color-mix(in srgb, ${C[c]} 30%, transparent)" stroke="${C[c]}"/><text class="t1" x="${x+w/2-1.5}" y="${y+rh/2-1}" font-size="${fit(t,w-10,13.5)}">${esc(t)}</text>`;x+=w});s+=`</g>`;
+    if(i)s+=`<path data-s="${i+1}" class="draw" pathLength="1" d="M210,${y-6} V${y+10}" stroke="var(--gold)" stroke-width="2.4" marker-end="url(#ah)" style="color:var(--gold)" fill="none"/>`});
+  return{svg:s+ending(o.end,n+1),caps:[...o.rows.map(r=>r.cap),o.end]}},
+bars(o){const n=o.arr.length,bw=Math.min(64,620/n),X=k=>(800-bw*n)/2+k*bw,mx=Math.max(...o.arr.map(a=>a.v));let s='';
+  for(let k=0;k<n;k++)s+=`<text class="t2" x="${X(k)+bw/2}" y="356" font-size="12">${k}</text>`;
+  o.arr.forEach((a,k)=>{const h=40+a.v/mx*190;s+=`<g id="b${k}" transform="translate(${X(k)},0)" data-x="${X(k)}" data-y="0"><rect class="bar" x="5" y="${330-h}" width="${bw-10}" height="${h}" rx="6"/><text class="t1" x="${bw/2}" y="${330-h-14}" font-size="16">${esc(a.l||a.v)}</text></g>`});
+  s+=`<g id="plo" opacity="0"><text class="lb" x="0" y="378" font-size="13" fill="var(--blue)"></text></g><g id="phi" opacity="0"><text class="lb" x="0" y="378" font-size="13" fill="var(--red)"></text></g>`;
+  const m=o.steps.length;return{svg:s+`<g data-s="${m+1}" class="pop"><text class="end" x="400" y="28" font-size="19">${esc(o.end)}</text></g>`,caps:[...o.steps.map(x=>x.cap),o.end],
+   onStep(i,sv){const stp=o.steps[Math.min(i,m-1)];stp.order.forEach((id,posn)=>{const g=sv.querySelector('#b'+id);tweenXY(g,X(posn),stp.up&&stp.up.includes(id)?-18:0,600);const r=g.querySelector('.bar');r.setAttribute('class','bar'+((stp.piv===id)?' piv':'')+((stp.hl||[]).includes(id)?' hl':'')+((stp.done||[]).includes(id)?' done':''))});
+    [['plo',stp.lo,stp.loT||'low'],['phi',stp.hi,stp.hiT||'high']].forEach(([id,posn,t])=>{const g=sv.querySelector('#'+id);if(posn==null){g.setAttribute('opacity',0);return}g.setAttribute('opacity',1);g.querySelector('text').textContent='▲ '+t;tweenXY(g,X(posn)+bw/2,id==='phi'&&posn===stp.lo?16:0,500)})}}},
+};
+/* ---------- 步骤生成器 ---------- */
+function genPartition(vals){const arr=vals.map((v,i)=>({v:parseInt(v),l:String(v)}));let ord=arr.map((_,i)=>i),lo=0,hi=arr.length-1;const pv=arr[0].v,steps=[];const V=p=>arr[ord[p]];
+  steps.push({order:[...ord],piv:0,lo,hi,up:[0],cap:`取第一个元素 ${arr[0].l} 作枢轴，low 指最左，high 指最右`});
+  while(lo<hi){while(lo<hi&&V(hi).v>=pv){hi--;}
+    if(lo<hi){const moved=V(hi).l;[ord[lo],ord[hi]]=[ord[hi],ord[lo]];steps.push({order:[...ord],piv:0,lo,hi,hl:[ord[lo]],up:[0],cap:`high 从右往左找到比枢轴小的 ${moved}，放到 low 的位置`})}
+    while(lo<hi&&V(lo).v<=pv){lo++;}
+    if(lo<hi){const moved=V(lo).l;[ord[lo],ord[hi]]=[ord[hi],ord[lo]];steps.push({order:[...ord],piv:0,lo,hi,hl:[ord[hi]],up:[0],cap:`low 从左往右找到比枢轴大的 ${moved}，放到 high 的位置`})}}
+  steps.push({order:[...ord],piv:0,lo,hi,done:[0],cap:`low = high，枢轴 ${arr[0].l} 落到最终位置：左边都不比它大，右边都不比它小`});return{arr,steps}}
+function genBubble(vals,passes){const arr=vals.map(v=>({v}));let ord=arr.map((_,i)=>i);const steps=[],done=[];const n=arr.length;
+  for(let p=0;p<passes;p++){for(let j=0;j<n-1-p;j++){const a=arr[ord[j]].v,b=arr[ord[j+1]].v;if(a>b){[ord[j],ord[j+1]]=[ord[j+1],ord[j]];steps.push({order:[...ord],hl:[ord[j],ord[j+1]],done:[...done],lo:j,hi:j+1,loT:'j',hiT:'j+1',cap:`第 ${p+1} 趟：${a} > ${b}，逆序，交换`})}else steps.push({order:[...ord],hl:[ord[j],ord[j+1]],done:[...done],lo:j,hi:j+1,loT:'j',hiT:'j+1',cap:`第 ${p+1} 趟：${a} ≤ ${b}，不动`})}
+    done.push(ord[n-1-p]);steps.push({order:[...ord],done:[...done],cap:`第 ${p+1} 趟结束：最大的 ${arr[ord[n-1-p]].v} 沉到最终位置`})}return{arr,steps}}
+function genInsert(vals){const arr=vals.map(v=>({v}));let ord=arr.map((_,i)=>i);const steps=[{order:[...ord],done:[0],cap:`把第一个元素 ${arr[0].v} 看作已排好的有序区`}];
+  for(let i=1;i<arr.length;i++){const id=ord[i];let j=i;while(j>0&&arr[ord[j-1]].v>arr[id].v){ord[j]=ord[j-1];j--}ord[j]=id;steps.push({order:[...ord],hl:[id],done:ord.slice(0,i+1),lo:j,loT:'插入位置',cap:`取出 ${arr[id].v}，在有序区从后往前比较，${i-j?`后移 ${i-j} 个元素后`:'不用移动，直接'}插入`})}return{arr,steps}}
+function genPage(ref,nf,mode){const fr=[],meta=[],steps=[];let faults=0,ptr=0;
+  ref.forEach((p,t)=>{const set=[];let hit=fr.indexOf(p),cap;
+    if(hit>=0){if(mode==='LRU')meta[hit]=t;cap=`访问 ${p}：已在内存，命中`}
+    else{faults++;if(fr.length<nf){fr.push(p);meta.push(t);cap=`访问 ${p}：缺页，还有空闲物理块，直接装入`}
+      else{let v=0;for(let k=1;k<nf;k++)if(meta[k]<meta[v])v=k;cap=`访问 ${p}：缺页，换出${mode==='FIFO'?'最早进入内存':'最久没有被访问'}的 ${fr[v]}`;fr[v]=p;meta[v]=t}}
+    fr.forEach((x,k)=>set.push([k,t,String(x),x===p?(hit>=0?'jade':'red'):'']));set.push([nf,t,hit>=0?'':'✓',hit>=0?'':'red']);
+    steps.push({set,cur:t,cap,note:`缺页 ${faults} 次 / 已访问 ${t+1} 次`})});
+  return{steps,faults}}
+function genHash(keys,m){const tb=Array(m).fill(null),steps=[];keys.forEach(k=>{let h=k%m,tr=[h];while(tb[h]!=null){h=(h+1)%m;tr.push(h)}tb[h]=k;
+  steps.push({set:[[0,h,String(k),tr.length>1?'red':'jade']],cur:h,cap:`${k} mod ${m} = ${tr[0]}${tr.length>1?`，冲突；向后探测 ${tr.slice(1).join(' → ')}，放进 ${h} 号`:`，空的，直接放入`}`,note:`查找 ${k} 成功需要比较 ${tr.length} 次`})});return steps}
+function genRR(procs,q){let t=0;const rem=procs.map(p=>p[1]),qu=procs.map((_,i)=>i),steps=[],total=rem.reduce((a,b)=>a+b);
+  while(qu.length){const i=qu.shift(),run=Math.min(q,rem[i]),set=[];for(let k=0;k<run;k++)set.push([i,t+k,'█','gold']);rem[i]-=run;t+=run;if(rem[i]>0)qu.push(i);
+    steps.push({set,cur:t-1,cap:`${procs[i][0]} 运行 ${run} 个时间单位${rem[i]>0?`，时间片用完，回到就绪队列末尾（还剩 ${rem[i]}）`:`，运行结束（完成时刻 ${t}）`}`,note:`就绪队列：${qu.map(k=>procs[k][0]).join(' → ')||'空'}`})}
+  return{steps,total}}
+
+/* 408 知识点：ch 科目；at 在整机中的位置；a 动画；yl 要点；ff 解题/计算；err 易错 */
+const OLDCH=['计算机组成原理','操作系统','计算机网络','数据结构'];
+const MEM0={0:'100:  ADD 200',1:'101:  下一条指令',2:'…',3:'200:  300（地址）',4:'300:  7（操作数）',5:'栈 / 其他'};
+const TREE={r:34,nodes:[{id:'A',n:'A',x:400,y:50},{id:'B',n:'B',x:240,y:150},{id:'C',n:'C',x:560,y:150},{id:'D',n:'D',x:150,y:260},{id:'E',n:'E',x:330,y:260},{id:'F',n:'F',x:470,y:260},{id:'G',n:'G',x:650,y:260}],
+ edges:[{f:'A',t:'B'},{f:'A',t:'C'},{f:'B',t:'D'},{f:'B',t:'E'},{f:'C',t:'F'},{f:'C',t:'G'}]};
+const trav=(seq,why)=>seq.split('').map((k,i)=>({n:k,visit:1,cap:`第 ${i+1} 个访问 ${k}${why[i]?'：'+why[i]:''}`}));
+const _qp=genPartition(['49','38','65','97','76','13','27','49*']),_bb=genBubble([5,2,4,6,1,3],2),_ins=genInsert([5,2,4,6,1,3]);
+const _ref=[7,0,1,2,0,3,0,4,2,3],_fifo=genPage(_ref,3,'FIFO'),_lru=genPage(_ref,3,'LRU'),_rr=genRR([['P1',5],['P2',3],['P3',1]],2);
+const OLD=[
+/* ================= 计组 ================= */
+{ch:0,t:'冯·诺依曼结构：五大部件',lv:3,at:['cpu','mem','bus'],a:{type:'flow',init:MEM0,steps:[
+ {hl:['kbd','scr','dma'],cap:'输入设备、输出设备：人和计算机打交道的地方，通过 I/O 接口挂在总线上'},
+ {hl:['mem','disk'],cap:'存储器：主存放正在运行的程序和数据，辅存（磁盘）放暂时不用的'},
+ {hl:['alu','acc'],cap:'运算器：ALU 做算术和逻辑运算，ACC 等寄存器暂存结果'},
+ {hl:['cu','pc','ir'],cap:'控制器：PC 记下一条指令的地址，IR 放当前指令，CU 发出控制信号'},
+ {hl:['bus'],cap:'总线：地址、数据、控制三组线，把所有部件连起来'},
+ {hl:['mem','pc'],mv:['mem','ir','指令'],cap:'“存储程序”：指令和数据都以二进制放在存储器里，按地址取出、自动逐条执行'}]},
+ yl:'冯·诺依曼机的核心是==存储程序==：指令和数据以同等地位存于存储器，按==地址==访问；由==运算器、控制器、存储器、输入设备、输出设备==五大部件组成；指令和数据都用==二进制==表示；指令由==操作码和地址码==组成。',
+ ff:'现代计算机以==存储器==为中心；CPU = 运算器 + 控制器；主机 = CPU + 主存。',
+ err:'指令和数据都是二进制，CPU 靠==所处的周期==区分：取指周期取出的是指令，执行周期取出的是数据。'},
+{ch:0,t:'取指周期',lv:3,at:['pc','mar','mdr','ir','mem'],a:{type:'flow',use:['pc','ir','mar','mdr','mem','cu','bus'],init:{...MEM0,pc:'100'},steps:[
+ {hl:['pc','mar'],mv:['pc','mar','(PC)→MAR'],set:{mar:'100'},cap:'① (PC)→MAR：把下一条指令的地址送到地址寄存器'},
+ {hl:['cu','mem'],mv:['cu','mem','1→R'],cap:'② 1→R：控制器发出读命令'},
+ {hl:['mem','mdr','bus'],mv:['mem','mdr','M(MAR)→MDR'],set:{mdr:'ADD 200'},cap:'③ M(MAR)→MDR：主存把 100 号单元的内容经数据总线送到 MDR'},
+ {hl:['mdr','ir'],mv:['mdr','ir','(MDR)→IR'],set:{ir:'ADD 200'},cap:'④ (MDR)→IR：指令放进指令寄存器'},
+ {hl:['ir','cu'],mv:['ir','cu','OP(IR)→CU'],set:{cu:'译码：ADD'},cap:'⑤ OP(IR)→CU：操作码送控制器译码'},
+ {hl:['pc'],set:{pc:'101'},cap:'⑥ (PC)+1→PC：PC 指向下一条指令'}]},
+ yl:'取指周期的任务是==根据 PC 取出指令放到 IR==：==(PC)→MAR==，==1→R==，==M(MAR)→MDR==，==(MDR)→IR==，OP(IR)→CU，==(PC)+1→PC==。',
+ ff:'数据通路大题先画清楚寄存器，再按“地址走 MAR、数据走 MDR”写微操作；能并行的微操作可以排在同一个节拍。',
+ err:'取指周期对==所有指令都一样==（公共操作）；“(PC)+1”的“1”指==一条指令的长度==，不一定是数值 1。'},
+{ch:0,t:'间址周期',lv:2,at:['ir','mar','mdr','mem'],a:{type:'flow',use:['ir','mar','mdr','mem','cu','bus'],init:{...MEM0,pc:'101',ir:'ADD @200'},steps:[
+ {hl:['ir','mar'],mv:['ir','mar','Ad(IR)→MAR'],set:{mar:'200'},cap:'① Ad(IR)→MAR：指令里的形式地址 200 送 MAR'},
+ {hl:['cu','mem'],mv:['cu','mem','1→R'],cap:'② 1→R：发读命令'},
+ {hl:['mem','mdr'],mv:['mem','mdr','M(MAR)→MDR'],set:{mdr:'300'},cap:'③ M(MAR)→MDR：读出 200 号单元的内容 300，它才是操作数的有效地址'},
+ {hl:['mdr','ir'],mv:['mdr','ir','(MDR)→Ad(IR)'],set:{ir:'ADD 300'},cap:'④ (MDR)→Ad(IR)：把有效地址送回指令的地址码字段'}]},
+ yl:'间址周期的任务是==取操作数的有效地址==：Ad(IR)→MAR，1→R，M(MAR)→MDR，==(MDR)→Ad(IR)==。',
+ ff:'一次间接寻址要==多访存一次==：取指 1 次 + 取地址 1 次 + 取操作数 1 次，共 3 次访存。',
+ err:'不是每条指令都有间址周期，只有==间接寻址==的指令才有。'},
+{ch:0,t:'执行周期：以 ADD X 为例',lv:3,at:['ir','mar','mdr','alu','acc','mem'],a:{type:'flow',use:['ir','mar','mdr','mem','alu','acc','cu','bus'],init:{...MEM0,pc:'101',ir:'ADD 300',acc:'5'},steps:[
+ {hl:['ir','mar'],mv:['ir','mar','Ad(IR)→MAR'],set:{mar:'300'},cap:'① Ad(IR)→MAR：操作数地址 300 送 MAR'},
+ {hl:['cu','mem'],mv:['cu','mem','1→R'],cap:'② 1→R：发读命令'},
+ {hl:['mem','mdr'],mv:['mem','mdr','M(MAR)→MDR'],set:{mdr:'7'},cap:'③ M(MAR)→MDR：取出操作数 7'},
+ {hl:['mdr','alu','acc'],mv:['mdr','alu','(MDR)'],set:{alu:'5 + 7'},cap:'④ ACC 和 MDR 的内容送 ALU 相加'},
+ {hl:['alu','acc'],mv:['alu','acc','12'],set:{acc:'12',alu:''},cap:'⑤ (ACC)+(MDR)→ACC：结果 12 写回累加器'}]},
+ yl:'执行周期的任务是==按操作码完成指令功能==，不同指令微操作不同。ADD X：==Ad(IR)→MAR==，1→R，==M(MAR)→MDR==，==(ACC)+(MDR)→ACC==。',
+ ff:'指令周期 = 取指 →（间址）→ 执行 →（中断）。用 4 个触发器 ==FE、IND、EX、INT== 标志当前处于哪个周期。',
+ err:'各机器周期的长度可以不相等；访存指令（取数、存数、加法）的执行周期都要==访问一次主存==。'},
+{ch:0,t:'中断周期',lv:3,at:['pc','mar','mdr','mem','cu'],a:{type:'flow',use:['pc','mar','mdr','mem','cu','bus'],init:{...MEM0,pc:'101'},steps:[
+ {hl:['cu'],set:{cu:'关中断'},cap:'① 关中断（0→EINT）：保证保存断点的过程不被打断，由硬件自动完成'},
+ {hl:['cu','mar'],mv:['cu','mar','(SP)−1→SP→MAR'],set:{mar:'栈顶地址'},cap:'② 修改栈指针，把栈顶地址送 MAR'},
+ {hl:['pc','mdr'],mv:['pc','mdr','(PC)→MDR'],set:{mdr:'101'},cap:'③ (PC)→MDR：断点（返回地址）准备写入'},
+ {hl:['mdr','mem'],mv:['mdr','mem','MDR→M(MAR)'],set:{5:'栈：断点 101'},cap:'④ 1→W，MDR→M(MAR)：断点压入堆栈'},
+ {hl:['cu','pc'],mv:['cu','pc','向量地址→PC'],set:{pc:'中断服务程序入口'},cap:'⑤ 向量地址→PC：转去执行中断服务程序'}]},
+ yl:'中断周期由==中断隐指令==（硬件）完成三件事：==关中断==、==保存断点==（PC）、==引出中断服务程序==（向量地址→PC）。',
+ ff:'中断服务程序的流程：保护现场和屏蔽字 → 开中断 → 执行服务 → 关中断 → 恢复现场和屏蔽字 → 开中断 → 中断返回。',
+ err:'==保存断点==是硬件（隐指令）做的；==保护现场==（通用寄存器等）是中断服务程序（软件）做的。CPU 在==一条指令执行结束==时才响应中断。'},
+{ch:0,t:'Cache 的访问过程',lv:3,at:['cache','mem'],a:{type:'flow',use:['mar','mdr','cache','mem','bus'],init:{0:'块 0',1:'块 1',2:'块 2  ← 要访问的字在这',3:'块 3',4:'…',5:'',mar:'主存地址'},steps:[
+ {hl:['mar','cache'],mv:['mar','cache','主存地址'],set:{cache:'比较标记'},cap:'① CPU 给出主存地址，先拿“标记”去 Cache 里比对'},
+ {hl:['cache','mdr'],mv:['cache','mdr','命中：数据'],set:{cache:'命中 ✓',mdr:'数据'},cap:'② 命中：直接从 Cache 取数送 CPU，不用访问主存'},
+ {hl:['cache','mem'],mv:['cache','mem','不命中'],set:{cache:'不命中 ✗',mdr:''},cap:'③ 不命中：改为访问主存'},
+ {hl:['mem','mdr'],mv:['mem','mdr','所需的字'],set:{mdr:'数据'},cap:'④ 从主存读出所需的字送 CPU'},
+ {hl:['mem','cache'],mv:['mem','cache','整块调入'],set:{cache:'装入块 2'},cap:'⑤ 同时把这个字所在的整块调入 Cache；Cache 满了就按替换算法换出一块'}]},
+ yl:'Cache 利用==程序访问的局部性原理==。CPU 访存时先查 Cache：==命中==则直接读；==不命中==则访问主存，并把所在==主存块调入 Cache==（满则替换）。Cache 对程序员==透明==，全由硬件实现。',
+ ff:'计算：==命中率 H = Nc / (Nc + Nm)==；平均访问时间 ==Ta = H·Tc + (1−H)·Tm==（先访 Cache 再访主存）或 H·Tc + (1−H)(Tc+Tm) 视题目“同时/先后”而定。',
+ err:'Cache 和主存之间以==块==为单位交换；Cache 行的总位数 = 有效位 + 标记 + 数据（可能还有脏位、替换控制位）。'},
+{ch:0,t:'Cache 与主存的三种映射',lv:3,at:['cache','mem'],a:{type:'grid',title:'主存 8 块（0–7）装入 4 行 Cache',lw:150,cw:132,cols:['行 0','行 1','行 2','行 3'],rows:['直接映射','全相联','2 路组相联'],steps:[
+ {set:[[0,0,'块 0 / 4','gold'],[0,1,'块 1 / 5','gold'],[0,2,'块 2 / 6','gold'],[0,3,'块 3 / 7','gold']],cap:'直接映射：主存块只能放到“块号 mod Cache 行数”那一行，位置唯一',note:'地址 = 标记 + Cache 行号 + 块内地址'},
+ {set:[[1,0,'任意块','jade'],[1,1,'任意块','jade'],[1,2,'任意块','jade'],[1,3,'任意块','jade']],cap:'全相联：主存块可以放到任意一行，最灵活，但要和所有行比较标记',note:'地址 = 标记 + 块内地址'},
+ {set:[[2,0,'组 0：偶数块','blue'],[2,1,'组 0：偶数块','blue'],[2,2,'组 1：奇数块','red'],[2,3,'组 1：奇数块','red']],cap:'组相联：先按“块号 mod 组数”定组（直接），组内任意放（全相联）',note:'地址 = 标记 + 组号 + 块内地址'}],end:'直接映射省硬件易冲突，全相联灵活但贵，组相联折中'},
+ yl:'==直接映射==：行号 = 主存块号 mod Cache 行数，冲突概率最高。==全相联==：任意位置，冲突最低但比较器多。==组相联==：组间直接、组内全相联，是折中方案。',
+ ff:'地址划分：直接 = ==标记 | 行号 | 块内地址==；全相联 = ==标记 | 块内地址==；组相联 = ==标记 | 组号 | 块内地址==。标记位数 = 主存地址位数 − 其余字段。',
+ err:'直接映射==不需要替换算法==（位置唯一）；k 路组相联需要 k 个比较器。'},
+{ch:0,t:'虚拟存储器：地址变换全过程',lv:3,at:['mmu','mem','disk','cache'],a:{type:'flow',use:['mar','mmu','cache','mem','disk','mdr','bus'],init:{0:'页表',1:'页框 1',2:'页框 2',3:'…',4:'',5:'',mar:'虚拟地址'},steps:[
+ {hl:['mar','mmu'],mv:['mar','mmu','虚页号'],set:{mmu:'查 TLB'},cap:'① CPU 给出虚拟地址，先用虚页号查 TLB（快表）'},
+ {hl:['mmu','mem'],mv:['mmu','mem','TLB 缺失'],set:{mmu:'TLB 缺失'},cap:'② TLB 没有：去主存里查页表（慢表）'},
+ {hl:['mem','disk'],mv:['mem','disk','缺页'],set:{0:'页表：有效位 = 0'},cap:'③ 页表有效位为 0：缺页，由操作系统的缺页处理程序接管'},
+ {hl:['disk','mem'],mv:['disk','mem','调入页面'],set:{2:'页框 2 ← 新调入的页',0:'页表：有效位 = 1'},cap:'④ 从磁盘把该页调入主存（没有空闲页框就先换出一页），更新页表'},
+ {hl:['mem','mmu'],mv:['mem','mmu','页框号'],set:{mmu:'TLB 已更新'},cap:'⑤ 页表项装入 TLB，重新执行被中断的指令，这次 TLB 命中'},
+ {hl:['mmu','cache','mem'],mv:['mmu','cache','物理地址'],set:{cache:'查 Cache'},cap:'⑥ 得到物理地址后，再按“先 Cache 后主存”的流程取数'}]},
+ yl:'虚拟地址 → 物理地址：先查==TLB==，缺失再查==页表==；页不在主存则==缺页==，由操作系统从磁盘调入并更新页表和 TLB；得到物理地址后再查 ==Cache==、访主存。',
+ ff:'三种缺失的组合：==TLB 命中则页一定在主存==（页表必命中）；==缺页时 TLB 和 Cache 都不可能命中==。',
+ err:'TLB、Cache 缺失由==硬件==处理（Cache）或软硬件处理（TLB）；==缺页由操作系统（软件）处理==。TLB 是页表的副本，Cache 是主存的副本。'},
+{ch:0,t:'I/O 方式：程序中断',lv:3,at:['kbd','dma','cu','mem'],a:{type:'flow',use:['kbd','dma','cu','pc','mem','mdr','bus'],init:{0:'主程序',1:'中断服务程序',2:'数据缓冲区',3:'',4:'',5:'',pc:'主程序'},steps:[
+ {hl:['kbd','dma'],mv:['kbd','dma','按键数据'],set:{dma:'数据就绪'},cap:'① 设备准备好数据，放进接口的数据缓冲寄存器；这期间 CPU 一直在跑主程序'},
+ {hl:['dma','cu'],mv:['dma','cu','中断请求'],cap:'② 接口向 CPU 发出中断请求'},
+ {hl:['cu','pc'],set:{cu:'响应中断',pc:'中断服务程序'},cap:'③ CPU 执行完当前指令后响应：关中断、保存断点、转入中断服务程序'},
+ {hl:['dma','mdr','mem'],mv:['dma','mem','数据'],set:{2:'数据缓冲区 ← 按键数据'},cap:'④ 中断服务程序把数据从接口读入内存（数据要经过 CPU）'},
+ {hl:['cu','pc'],set:{cu:'',pc:'主程序'},cap:'⑤ 恢复现场，中断返回，接着执行主程序'}]},
+ yl:'程序中断方式：设备准备期间 ==CPU 和设备并行工作==；设备就绪后发==中断请求==，CPU 在==一条指令执行结束==时响应，由==中断服务程序==完成数据传送。',
+ ff:'响应中断的条件：有中断请求、==CPU 允许中断（开中断）==、一条指令执行完毕。',
+ err:'中断方式每传一个字（或字节）就要中断一次，数据传送靠==软件==（服务程序），不适合高速设备。'},
+{ch:0,t:'I/O 方式：DMA',lv:3,at:['dma','mem','disk'],a:{type:'flow',use:['disk','dma','cu','mem','bus'],init:{0:'主程序',1:'数据缓冲区',2:'',3:'',4:'',5:''},steps:[
+ {hl:['cu','dma'],mv:['cu','dma','预处理'],set:{dma:'地址 / 计数已设好'},cap:'① 预处理：CPU 把主存起始地址、传送字数等写进 DMA 控制器，然后去干别的'},
+ {hl:['disk','dma'],mv:['disk','dma','DMA 请求'],cap:'② 设备准备好一个数据，向 DMA 控制器发 DMA 请求'},
+ {hl:['dma','cu'],mv:['dma','cu','总线请求'],cap:'③ DMA 控制器向 CPU 申请总线'},
+ {hl:['cu','bus'],set:{cu:'让出总线'},cap:'④ CPU 在一个存取周期结束后让出总线（不用等指令执行完）'},
+ {hl:['disk','dma','mem','bus'],mv:['dma','mem','数据块'],set:{1:'数据缓冲区 ← 整块数据'},cap:'⑤ 数据在设备和主存之间直接传送，不经过 CPU，由硬件完成'},
+ {hl:['dma','cu'],mv:['dma','cu','中断请求'],set:{cu:'后处理',dma:'传送完毕'},cap:'⑥ 整块传完后，DMA 发中断请求，CPU 做后处理（校验、结束等）'}]},
+ yl:'DMA 方式：在==外设和主存之间开辟直接数据通路==，数据传送由 ==DMA 控制器（硬件）==完成，不经过 CPU。分三个阶段：==预处理、数据传送、后处理==。',
+ ff:'对比：中断在==指令周期结束==时响应、靠程序传送；DMA 请求在==存取周期结束==时响应、靠硬件传送，优先级高于中断。',
+ err:'DMA 传送==以数据块为单位==；DMA 方式里也有中断，但只用于==后处理==，不用于传数据。'},
+{ch:0,t:'指令流水线',lv:2,at:['cu','alu'],a:{type:'grid',title:'5 段流水线，时空图',cw:70,cols:['t1','t2','t3','t4','t5','t6','t7'],rows:['指令 1','指令 2','指令 3'],steps:[
+ {set:[[0,0,'取指','gold'],[0,1,'译码','jade'],[0,2,'执行','blue'],[0,3,'访存','red'],[0,4,'写回','gold']],cap:'一条指令分 5 段：取指 IF、译码 ID、执行 EX、访存 MEM、写回 WB'},
+ {set:[[1,1,'取指','gold'],[1,2,'译码','jade'],[1,3,'执行','blue'],[1,4,'访存','red'],[1,5,'写回','gold']],cap:'指令 1 进入译码段时，指令 2 就可以开始取指'},
+ {set:[[2,2,'取指','gold'],[2,3,'译码','jade'],[2,4,'执行','blue'],[2,5,'访存','red'],[2,6,'写回','gold']],cap:'以后每过一个时钟周期，就有一条指令完成',note:'3 条指令共用 5 + (3−1) = 7 个周期'}],end:'n 条指令、k 段流水：总时间 = (k + n − 1)·Δt'},
+ yl:'流水线把指令执行分成若干段，==各段并行==处理不同指令。时钟周期取==最长段的时间==。性能指标：==吞吐率 TP = n / ((k+n−1)Δt)==，==加速比 S = kn / (k+n−1)==。',
+ ff:'三种冒险：==结构冒险==（资源冲突）、==数据冒险==（用到还没写回的数据，靠转发/暂停）、==控制冒险==（转移，靠分支预测）。',
+ err:'流水线==不能缩短单条指令==的执行时间，提高的是==吞吐率==；流水段寄存器会让单条指令时间略有增加。'},
+/* ================= 操作系统 ================= */
+{ch:1,t:'进程的状态转换',lv:3,at:['cpu'],a:{type:'states',r:44,nodes:[{id:'new',n:'创建',x:110,y:110},{id:'rdy',n:'就绪',x:300,y:210},{id:'run',n:'运行',x:560,y:210},{id:'blk',n:'阻塞',x:430,y:340},{id:'end',n:'终止',x:710,y:110}],
+ edges:[{f:'new',t:'rdy',txt:'创建完成',lx:34},{f:'rdy',t:'run',txt:'进程调度',b:-14,ly:-22},{f:'run',t:'rdy',txt:'时间片用完 / 被抢占',b:-14,ly:26},{f:'run',t:'blk',txt:'等待事件（如请求 I/O）',lx:92,ly:8},{f:'blk',t:'rdy',txt:'事件发生（如 I/O 完成）',lx:-92,ly:8},{f:'run',t:'end',txt:'运行结束',lx:42}],
+ steps:[{e:0,cap:'创建 → 就绪：分配好 PCB 和资源，万事俱备，只差 CPU'},{e:1,cap:'就绪 → 运行：被调度程序选中，拿到 CPU'},{e:2,cap:'运行 → 就绪：时间片用完，或被更高优先级的进程抢占'},{e:1,cap:'再次被调度，继续运行'},{e:3,cap:'运行 → 阻塞：进程自己请求 I/O 或等待某个事件，是主动行为'},{e:4,cap:'阻塞 → 就绪：等待的事件发生了，由别的进程或中断唤醒，是被动行为'},{e:1,cap:'回到就绪队列后，还要再等调度才能运行'},{e:5,cap:'运行 → 终止：运行结束或出错'}],end:'没有“阻塞 → 运行”，也没有“就绪 → 阻塞”'},
+ yl:'进程三种基本状态：==就绪==（只缺 CPU）、==运行==、==阻塞==（等待事件）。==运行→阻塞是主动==的，==阻塞→就绪是被动==的。',
+ ff:'单处理机中处于运行态的进程最多 ==1 个==，最少 0 个；n 个进程时就绪态最多 ==n−1== 个，阻塞态最多 n 个。',
+ err:'==阻塞态不能直接到运行态==，必须先回就绪队列；==就绪态不能直接到阻塞态==。PCB 是进程存在的唯一标志。'},
+{ch:1,t:'时间片轮转调度（RR）',lv:3,at:['cpu'],a:{type:'grid',title:'P1 需 5、P2 需 3、P3 需 1，同时到达，时间片 q = 2',cw:60,cols:Array.from({length:_rr.total},(_,i)=>String(i)),rows:['P1','P2','P3'],steps:_rr.steps,end:'每个进程轮流运行一个时间片，用完就排到队尾'},
+ yl:'时间片轮转：就绪队列按 ==FCFS== 排队，每次给队首进程一个==时间片==，用完则==剥夺 CPU、排到队尾==。属于==抢占式==，适合==分时系统==，不会饥饿。',
+ ff:'计算：==周转时间 = 完成时间 − 到达时间==；==带权周转时间 = 周转时间 / 运行时间==；==等待时间 = 周转时间 − 运行时间==。',
+ err:'时间片==太大==退化为 FCFS；==太小==则进程切换过于频繁，开销大。'},
+{ch:1,t:'页面置换：FIFO',lv:3,at:['mem','disk'],a:{type:'grid',title:'3 个物理块，访问串 7 0 1 2 0 3 0 4 2 3',cw:56,cols:_ref.map(String),rows:['物理块 1','物理块 2','物理块 3','缺页'],steps:_fifo.steps,end:`FIFO：共缺页 ${_fifo.faults} 次，缺页率 ${_fifo.faults}/10`},
+ yl:'==先进先出（FIFO）==：淘汰==最早进入内存==的页面。实现简单，但与进程实际运行规律不符，可能出现 ==Belady 异常==（物理块增多，缺页次数反而增加）。',
+ ff:'做题画表：一列一次访问，标出每次是否缺页；==缺页率 = 缺页次数 / 访问总次数==。前几次装入空闲块==也算缺页==。',
+ err:'只有 ==FIFO== 会出现 Belady 异常；LRU 和 OPT 属于堆栈类算法，不会。'},
+{ch:1,t:'页面置换：LRU',lv:3,at:['mem','disk'],a:{type:'grid',title:'3 个物理块，访问串 7 0 1 2 0 3 0 4 2 3',cw:56,cols:_ref.map(String),rows:['物理块 1','物理块 2','物理块 3','缺页'],steps:_lru.steps,end:`LRU：共缺页 ${_lru.faults} 次；同一访问串 FIFO 是 ${_fifo.faults} 次`},
+ yl:'==最近最久未使用（LRU）==：淘汰==最近最长时间没有被访问==的页面。性能接近最佳置换 OPT，但需要==寄存器和栈的硬件支持==，开销大。',
+ ff:'手算技巧：缺页时==从当前位置往左（往前）看==，物理块里的页面中最后一个出现的就是要淘汰的。OPT 则是往右（往后）看。',
+ err:'OPT 是理论算法==无法实现==，只用来做衡量标准；CLOCK 是 LRU 的近似，用访问位（改进型再加修改位）。'},
+{ch:1,t:'系统调用：从用户态到核心态',lv:3,at:['cpu','cu'],a:{type:'seq',lanes:['用户程序','CPU（硬件）','操作系统内核'],msgs:[
+ {f:0,t:0,txt:'用户态运行',c:'jade'},
+ {f:0,t:1,txt:'执行陷入指令（trap / 访管指令）',cap:'用户程序需要系统服务（如读文件），执行一条陷入指令'},
+ {f:1,t:1,txt:'用户态 → 核心态，保存断点',c:'red',cap:'CPU 响应这个内中断：硬件自动把状态切到核心态，保存断点'},
+ {f:1,t:2,txt:'按系统调用号转入处理程序',cap:'根据系统调用号，转到内核里对应的服务例程'},
+ {f:2,t:2,txt:'在核心态执行系统服务',c:'gold'},
+ {f:2,t:1,txt:'恢复现场，执行中断返回指令',cap:'服务完成，恢复现场，执行特权的“中断返回”指令'},
+ {f:1,t:0,txt:'核心态 → 用户态，回到下一条指令',c:'jade',cap:'CPU 切回用户态，用户程序从陷入指令的下一条继续'}],end:'用户态→核心态只能靠中断/异常；核心态→用户态靠一条特权指令'},
+ yl:'用户程序通过==系统调用==请求内核服务：执行==陷入指令（访管指令）==引发内中断，CPU 由==用户态切换到核心态==，内核完成服务后返回。',
+ ff:'==用户态→核心态==：唯一途径是==中断或异常==（硬件完成）。==核心态→用户态==：执行一条修改 PSW 的==特权指令==。',
+ err:'==陷入指令本身不是特权指令==（它就是给用户态用的）；系统调用的==处理过程==才在核心态执行。'},
+/* ================= 计算机网络 ================= */
+{ch:2,t:'分层与数据封装',lv:3,at:['nic'],a:{type:'layers',rows:[
+ {n:'应用层',pdu:'报文',segs:[['应用数据','jade',220]],cap:'应用层：产生要发送的数据（报文），例如一个 HTTP 请求'},
+ {n:'传输层',pdu:'报文段',segs:[['TCP 首部','blue',84],['应用数据','jade',220]],cap:'传输层：加上 TCP 首部（端口号、序号等），成为报文段，提供端到端服务'},
+ {n:'网络层',pdu:'数据报（分组）',segs:[['IP 首部','gold',76],['TCP 首部','blue',84],['应用数据','jade',220]],cap:'网络层：加上 IP 首部（源、目的 IP 地址），成为 IP 数据报，负责选路转发'},
+ {n:'数据链路层',pdu:'帧',segs:[['帧头','red',60],['IP 首部','gold',76],['TCP 首部','blue',84],['应用数据','jade',220],['帧尾','red',56]],cap:'数据链路层：加帧头（MAC 地址）和帧尾（FCS 校验），成为帧'},
+ {n:'物理层',pdu:'比特流',segs:[['0 1 0 1 1 0 1 0 0 1 1 0 1 0 1 1 …','gold',496]],cap:'物理层：把帧变成比特流，转换成信号在介质上传输'}],end:'发送方自上而下逐层封装，接收方自下而上逐层拆封'},
+ yl:'数据自上而下==逐层封装==：应用层==报文== → 传输层==报文段== → 网络层==数据报（分组）== → 数据链路层==帧== → 物理层==比特==。只有==数据链路层既加头又加尾==。',
+ ff:'PDU = PCI（本层控制信息）+ SDU（上层交下来的数据）；==n 层的 SDU 是 n+1 层的 PDU==。',
+ err:'OSI 七层 vs TCP/IP 四层：TCP/IP 的网络层只提供==无连接==服务，传输层有 TCP（面向连接）和 UDP（无连接）。'},
+{ch:2,t:'TCP 三次握手',lv:3,at:['nic'],a:{type:'seq',lanes:['客户端','服务器'],msgs:[
+ {f:1,t:1,txt:'LISTEN（被动打开）',c:'jade'},
+ {f:0,t:1,txt:'SYN = 1，seq = x',note:[[0,'SYN-SENT']],cap:'第一次：客户端发连接请求，SYN = 1，随机选初始序号 x；不能携带数据，但消耗一个序号'},
+ {f:1,t:0,txt:'SYN = 1，ACK = 1，seq = y，ack = x + 1',note:[[1,'SYN-RCVD']],cap:'第二次：服务器同意，SYN = 1、ACK = 1，自己的初始序号 y，确认号 x + 1；此时分配缓存和变量'},
+ {f:0,t:1,txt:'ACK = 1，seq = x + 1，ack = y + 1',note:[[0,'ESTABLISHED'],[1,'ESTABLISHED']],cap:'第三次：客户端确认，ACK = 1，seq = x + 1，ack = y + 1；这个报文段可以携带数据'}],end:'三次握手：防止已失效的连接请求又传到服务器'},
+ yl:'第一次 ==SYN=1, seq=x==；第二次 ==SYN=1, ACK=1, seq=y, ack=x+1==；第三次 ==ACK=1, seq=x+1, ack=y+1==。',
+ ff:'口诀：==ack = 对方的 seq + 1==；SYN 报文段==不能带数据但消耗一个序号==；第三次握手==可以带数据==，不带数据则不消耗序号。',
+ err:'服务器的资源在==第二次握手==时分配，所以会被 ==SYN 洪泛攻击==；客户端的资源在第三次握手时分配。'},
+{ch:2,t:'TCP 四次挥手',lv:3,at:['nic'],a:{type:'seq',lanes:['客户端','服务器'],msgs:[
+ {f:0,t:1,txt:'FIN = 1，seq = u',note:[[0,'FIN-WAIT-1']],cap:'第一次：客户端数据发完了，发 FIN，主动关闭'},
+ {f:1,t:0,txt:'ACK = 1，seq = v，ack = u + 1',note:[[1,'CLOSE-WAIT'],[0,'FIN-WAIT-2']],cap:'第二次：服务器确认。此时处于半关闭：客户端不再发数据，但服务器还可以发'},
+ {f:1,t:0,txt:'FIN = 1，ACK = 1，seq = w，ack = u + 1',note:[[1,'LAST-ACK']],cap:'第三次：服务器的数据也发完了，发 FIN'},
+ {f:0,t:1,txt:'ACK = 1，seq = u + 1，ack = w + 1',note:[[0,'TIME-WAIT'],[1,'CLOSED']],cap:'第四次：客户端确认，然后进入 TIME-WAIT'},
+ {f:0,t:0,txt:'等待 2MSL 后 CLOSED',c:'red',cap:'客户端要等 2MSL 才真正关闭：保证最后一个 ACK 能到达，并让本连接的报文段都消失'}],end:'四次挥手：TCP 是全双工，两个方向要分别关闭'},
+ yl:'第一次 ==FIN=1, seq=u==；第二次 ==ACK=1, ack=u+1==（半关闭）；第三次 ==FIN=1, ACK=1, ack=u+1==；第四次 ==ACK=1, ack=w+1==，然后等待 ==2MSL==。',
+ ff:'计算最短释放时间：从客户端发 FIN 算起，客户端至少要经过 1 RTT + 服务器发 FIN 的等待 + ==2MSL==。',
+ err:'等 2MSL 的两个原因：保证==最后的 ACK 能到达==服务器；防止==已失效的报文段==出现在新连接中。服务器比客户端==先==进入 CLOSED。'},
+{ch:2,t:'ARP 地址解析',lv:2,at:['nic'],a:{type:'seq',lanes:['主机 A','本网段其他主机','主机 B'],msgs:[
+ {f:0,t:0,txt:'查 ARP 缓存：没有 B 的 MAC',c:'red',cap:'A 要给同一局域网的 B 发数据，只知道 IP，先查自己的 ARP 缓存'},
+ {f:0,t:2,txt:'ARP 请求（广播）：谁是 IP_B？',cap:'A 广播 ARP 请求，目的 MAC 是 FF-FF-FF-FF-FF-FF，本网段所有主机都能收到'},
+ {f:1,t:1,txt:'IP 不匹配，丢弃',c:'blue'},
+ {f:2,t:0,txt:'ARP 响应（单播）：IP_B 的 MAC 是 …',cap:'只有 B 发现是找自己，单播回一个 ARP 响应'},
+ {f:0,t:0,txt:'写入 ARP 缓存，封装成帧发送',c:'jade',cap:'A 把 IP_B → MAC_B 的映射写进缓存，之后直接封装成帧发出去'}],end:'ARP：已知 IP 地址，求 MAC 地址'},
+ yl:'ARP 解决==同一局域网内 IP 地址到 MAC 地址==的映射。==ARP 请求是广播==，==ARP 响应是单播==。ARP 工作在==网络层==。',
+ ff:'目的主机不在本网段时，ARP 解析的是==默认网关（路由器）==的 MAC 地址；数据报每经过一个路由器，==MAC 地址变、IP 地址不变==。',
+ err:'ARP 是自动进行的，对用户==透明==；ARP 只在==本局域网==内起作用，不能跨网段解析。'},
+{ch:2,t:'DNS 域名解析',lv:2,at:['nic'],a:{type:'seq',lanes:['主机','本地域名服务器','根','顶级 .com','权限'],msgs:[
+ {f:0,t:1,txt:'查 y.abc.com',cap:'主机向本地域名服务器查询：通常是递归查询'},
+ {f:1,t:2,txt:'查',cap:'本地域名服务器向根域名服务器查询：通常是迭代查询'},
+ {f:2,t:1,txt:'去问 .com',cap:'根服务器不知道，告诉它该去问 .com 顶级域名服务器'},
+ {f:1,t:3,txt:'查'},
+ {f:3,t:1,txt:'去问权限服务器',cap:'顶级域名服务器告诉它该去问 abc.com 的权限域名服务器'},
+ {f:1,t:4,txt:'查'},
+ {f:4,t:1,txt:'IP 地址',c:'jade',cap:'权限域名服务器给出最终的 IP 地址'},
+ {f:1,t:0,txt:'IP 地址',c:'jade',cap:'本地域名服务器把结果返回给主机，并写入缓存'}],end:'主机到本地：递归；本地到其他服务器：迭代'},
+ yl:'DNS 把==域名解析为 IP 地址==，使用 ==UDP 53 端口==。主机向本地域名服务器一般是==递归查询==；本地域名服务器向根等服务器一般是==迭代查询==。',
+ ff:'数查询次数：没有缓存时，上图迭代方式共 ==8 个报文==（4 次查询 + 4 次回答）；有缓存可以大幅减少。',
+ err:'域名服务器分四类：==根、顶级、权限、本地==；本地域名服务器不属于域名层次结构。'},
+/* ================= 数据结构 ================= */
+{ch:3,t:'快速排序：一趟划分',lv:3,at:['mem'],a:{type:'bars',arr:_qp.arr,steps:_qp.steps,end:'一趟划分后，枢轴到达最终位置'},
+ yl:'快速排序基于==分治==：选一个==枢轴==，一趟划分后把表分成“不大于枢轴”和“不小于枢轴”两部分，==枢轴落到最终位置==，再递归处理两边。',
+ ff:'平均时间 ==O(n log₂n)==，最坏 ==O(n²)==（表基本有序时）；空间是递归栈，平均 ==O(log₂n)==，最坏 O(n)。',
+ err:'快排==不稳定==；每趟==至少一个元素==到最终位置，但中间不产生有序子序列。表越接近有序反而越慢。'},
+{ch:3,t:'冒泡排序',lv:2,at:['mem'],a:{type:'bars',arr:_bb.arr,steps:_bb.steps,end:'每一趟把一个最大的元素“沉”到最终位置'},
+ yl:'冒泡排序：两两比较相邻元素，逆序就交换；==每一趟把一个最大（或最小）元素放到最终位置==。',
+ ff:'最好 ==O(n)==（已有序，一趟无交换就结束），最坏和平均 ==O(n²)==，空间 O(1)。',
+ err:'冒泡是==稳定==的（相等不交换）；每趟产生的有序子序列是==全局有序==的。'},
+{ch:3,t:'直接插入排序',lv:2,at:['mem'],a:{type:'bars',arr:_ins.arr,steps:_ins.steps,end:'每次把一个元素插入到前面已排好的有序区'},
+ yl:'直接插入排序：每次把一个待排元素==插入到前面已排好序的子序列==中的合适位置。',
+ ff:'最好 ==O(n)==（已有序），最坏和平均 ==O(n²)==；适合==基本有序==、数据量小的表。',
+ err:'==稳定==；有序区是==局部有序==的（最后一趟前，元素不一定在最终位置）。'},
+{ch:3,t:'散列表：线性探测法',lv:3,at:['mem'],a:{type:'grid',title:'H(key) = key mod 11，依次插入 22 41 53 46 30 13 1',cw:56,lw:70,cols:Array.from({length:11},(_,i)=>String(i)),rows:['关键字'],steps:genHash([22,41,53,46,30,13,1],11),end:'冲突就顺着往后找空位：容易产生“堆积”'},
+ yl:'==线性探测法==：发生冲突时，==顺序查看下一个单元==，直到找到空位。容易使大量元素在相邻地址==堆积（聚集）==，降低查找效率。',
+ ff:'==ASL成功 = 每个关键字的比较次数之和 / 关键字个数==；==ASL失败 = 每个散列地址到第一个空位的比较次数之和 / 散列函数的取值个数==（这里是 11）。',
+ err:'开放定址法里==不能直接物理删除==元素（会截断探测序列），只能做删除标记。装填因子 α = 表中记录数 / 表长。'},
+{ch:3,t:'二叉树遍历：先序',lv:3,at:['mem'],a:{type:'states',out:1,...TREE,steps:trav('ABDECFG',['根','进左子树，先访问它的根','','D 没有孩子，回到 B，进右子树','左子树走完，进 A 的右子树','','']),end:'先序（根 左 右）'},
+ yl:'先序遍历：==先访问根==，再先序遍历左子树，再先序遍历右子树（==根 左 右==）。',
+ ff:'==先序 + 中序==、==后序 + 中序==、==层序 + 中序==都能唯一确定一棵二叉树；先序的第一个是根。',
+ err:'==先序 + 后序不能唯一确定==二叉树，只能确定祖先关系。'},
+{ch:3,t:'二叉树遍历：中序',lv:3,at:['mem'],a:{type:'states',out:1,...TREE,steps:trav('DBEAFCG',['一路向左走到底，先访问最左的结点','左子树访问完，访问根 B','再访问 B 的右子树','A 的左子树全部访问完，访问根 A','进右子树，同样先走到最左','','']),end:'中序（左 根 右）'},
+ yl:'中序遍历：先中序遍历左子树，==再访问根==，再中序遍历右子树（==左 根 右==）。',
+ ff:'==二叉排序树的中序序列是递增有序==的；中序序列里，根把序列分成左子树和右子树两部分。',
+ err:'中序线索二叉树里，结点的后继是其==右子树的最左下结点==。'},
+{ch:3,t:'二叉树遍历：后序',lv:3,at:['mem'],a:{type:'states',out:1,...TREE,steps:trav('DEBFGCA',['先处理完左子树','再处理右子树','左右孩子都访问完，才访问 B','','','','最后访问根 A']),end:'后序（左 右 根）'},
+ yl:'后序遍历：先后序遍历左子树，再后序遍历右子树，==最后访问根==（==左 右 根==）。',
+ ff:'后序的==最后一个是根==；求树的高度、释放结点、表达式求值都是后序的思路。',
+ err:'后序遍历非递归实现时，栈里保存的恰好是==从根到当前结点的路径==（可用来求祖先）。'},
+];
+
+/* ===== 大图部件：id:[x,y,w,h,名称,类型(c=容器),层(u 用户/k 内核/h 硬件),一句话说明] ===== */
+const MP={
+ p1:[70,80,360,110,'进程 P1','','u','一个正在运行的用户进程：有自己的代码、数据、堆、用户栈。只能执行非特权指令，想做 I/O 等事情必须请内核代办。'],
+ lib:[460,80,210,110,'库函数','','u','例如 C 库的 read()、printf()。运行在用户态，是对系统调用的封装；不是所有库函数都会发起系统调用。'],
+ p2:[700,80,270,110,'进程 P2','','u','另一个用户进程。每个进程有独立的地址空间和页表，互相看不到对方的内存。'],
+ p3:[1000,80,270,110,'进程 P3','','u','另一个用户进程。'],
+ app:[1300,80,330,110,'应用程序（如浏览器）','','u','需要联网的用户程序，通过套接字系统调用使用内核里的网络协议栈。'],
+ sci:[70,276,300,78,'系统调用入口 · 系统调用表','','k','所有系统调用的统一入口：保存现场，用系统调用号作下标查系统调用表，转到对应的内核服务例程。'],
+ idt:[400,276,300,78,'中断向量表 · 中断处理程序','','k','中断向量表存放各类中断/异常处理程序的入口地址；处理程序在核心态运行。'],
+ clk:[730,276,230,78,'时钟管理','','k','时钟中断处理程序：维护系统时间、给当前进程的时间片计数，时间片用完就触发调度。'],
+ sem:[990,276,230,78,'信号量 · PV 操作','','k','实现进程同步与互斥的机制。P、V 是原语，执行过程不可被中断。'],
+ kstk:[1250,276,380,78,'内核栈','','k','每个进程在内核里有一个栈。陷入内核时，断点（PC、PSW）和现场（通用寄存器）就压在这里。'],
+ pm:[70,384,500,200,'进程管理','c','k',''],
+ pcb:[90,424,150,66,'PCB 表','','k','进程控制块：进程存在的唯一标志。保存进程标识、状态、优先级、处理机上下文、资源清单等。'],
+ rq:[260,424,290,66,'就绪队列','','k','万事俱备、只缺 CPU 的进程在这里排队，等调度程序挑选。'],
+ sch:[90,504,150,66,'调度程序','','k','决定下一个把 CPU 给谁（调度），并完成上下文的保存和恢复（切换）。'],
+ bq:[260,504,290,66,'阻塞队列','','k','等待某个事件（I/O 完成、信号量等）的进程在这里。通常每类事件一个队列。'],
+ mm:[600,384,320,200,'内存管理','c','k',''],
+ pt:[620,424,130,66,'页表','','k','记录每个页对应的页框号，以及有效位、访问位、修改位等。每个进程一张，放在内存里。'],
+ pf:[770,424,130,66,'缺页处理','','k','缺页中断处理程序：把不在内存的页从外存调入。'],
+ fl:[620,504,280,66,'空闲页框 · 页面置换','','k','管理空闲的物理页框；没有空闲页框时用置换算法选一页换出。'],
+ fs:[950,384,320,200,'文件系统','c','k',''],
+ oft:[970,424,280,66,'打开文件表','','k','系统打开文件表（全系统一张）和进程打开文件表（每进程一张）。文件描述符 fd 就是进程表的下标。'],
+ ino:[970,504,130,66,'目录 · inode','','k','目录把文件名映射到 FCB / 索引结点；inode 里有文件属性和磁盘块的地址。'],
+ buf:[1120,504,130,66,'缓冲区','','k','内核的磁盘块高速缓存和各种 I/O 缓冲区，用来缓和 CPU 与设备的速度差。'],
+ io:[1300,384,330,200,'设备管理','c','k',''],
+ dev:[1320,424,290,66,'设备独立性软件','','k','向上提供统一接口；负责设备保护、缓冲、差错处理、设备分配回收、逻辑设备名到物理设备名的映射。'],
+ drv:[1320,504,135,66,'设备驱动','','k','每类设备一个驱动程序，把抽象的 I/O 请求变成对设备控制器寄存器的具体读写。'],
+ net:[1475,504,135,66,'网络协议栈','','k','内核里的 TCP/IP 实现：套接字、TCP/UDP、IP、ARP 等。'],
+ cpu:[70,696,790,344,'CPU','c','h',''],
+ cu:[96,742,160,60,'控制器 CU','','h','根据指令操作码和时序产生控制信号；每条指令执行结束时检查有没有中断请求。'],
+ alu:[276,742,160,60,'运算器 ALU','','h','完成算术和逻辑运算。'],
+ psw:[456,742,170,60,'PSW 状态字','','h','程序状态字：含模式位（用户态/核心态）、中断允许位、条件码等。只有核心态才能修改。'],
+ pc:[96,826,110,60,'PC','','h','程序计数器：下一条要执行的指令的地址。'],
+ ir:[226,826,150,60,'IR','','h','指令寄存器：正在执行的指令。'],
+ reg:[396,826,230,60,'通用寄存器 · SP','','h','暂存操作数和结果；SP 是栈指针。系统调用的调用号和参数也通过它们传递。'],
+ mar:[96,910,160,60,'MAR','','h','存储器地址寄存器：要访问的主存单元地址。'],
+ mdr:[276,910,160,60,'MDR','','h','存储器数据寄存器：从主存读出或要写入主存的数据。'],
+ acc:[456,910,170,60,'ACC','','h','累加器：存放运算的操作数和结果。'],
+ mmu:[670,742,164,70,'MMU 地址变换','','h','内存管理单元：硬件完成逻辑地址到物理地址的变换，内含页表基址寄存器。'],
+ tlb:[670,826,164,60,'TLB 快表','','h','相联存储器，存放最近用过的页表项，按内容并行查找。是页表的一小部分副本。'],
+ cache:[670,910,164,104,'Cache','','h','高速缓存：主存中一部分块的副本，利用局部性原理加快访存。对程序员透明。'],
+ mem:[910,696,290,344,'主存（内存条）','','h','存放正在运行的程序和数据，按地址访问。分为内核区和用户区，被划分成等大的页框。'],
+ pic:[1250,696,185,72,'中断控制器','','h','接收各个设备的中断请求，排队判优、按屏蔽字过滤后，向 CPU 发出中断信号。'],
+ tmr:[1455,696,185,72,'时钟（定时器）','','h','每隔固定时间产生一次时钟中断，是分时和抢占调度的硬件基础。'],
+ disk:[1455,800,185,84,'磁盘','','h','辅存：存放文件和对换区。速度比 CPU 慢好几个数量级。'],
+ dma:[1250,800,185,84,'I/O 接口 · DMA','','h','设备控制器：含数据、状态、控制寄存器。DMA 控制器能让设备和主存直接传数据块。'],
+ kbd:[1250,916,120,84,'键盘','','h','输入设备，字符设备。'],
+ scr:[1384,916,122,84,'显示器','','h','输出设备。'],
+ nic:[1520,916,120,84,'网卡','','h','网络接口：把帧变成信号发出去，收到帧时产生中断。'],
+};
+const GROUPS=['中断与系统调用','进程管理','内存管理','文件与 I/O','计组：指令执行与存储','计算机网络','数据结构'];
+const S=(hl,mv,set,cap,why,trap)=>({hl,mv,set,cap,why,trap});
+const U='用户态 · 开中断',K='核心态 · 关中断',K1='核心态 · 开中断';
+const LS=[
+/* ================= 中断与系统调用 ================= */
+{g:0,t:'外部中断的完整过程（以按下键盘为例）',lv:3,at:['kbd','pic','idt','psw','kstk','cu'],init:{psw:U,pc:'P1 的指令',pcb:'P1 运行'},steps:[
+ S(['kbd','dma'],['kbd','dma','扫描码'],{dma:'数据就绪'},'① 你按下一个键，键盘把扫描码送进接口的数据寄存器','外设和 CPU 是并行工作的。此时 CPU 还在执行 P1 的指令，完全不知道有按键。'),
+ S(['dma','pic'],['dma','pic','中断请求'],{pic:'有请求'},'② 接口向中断控制器发出中断请求','中断控制器负责给多个中断源排队判优，再按屏蔽字过滤，然后才把中断信号送给 CPU。'),
+ S(['pic','cu'],['pic','cu','中断信号'],null,'③ CPU 在当前指令执行结束时，检查到有中断请求','响应外中断的时机是“一条指令执行结束”。响应条件：有中断请求 + PSW 里的中断允许位是开的。','异常（内中断）不一样：它是在指令执行过程中被检测到并立即响应的，不用等指令结束。'),
+ S(['psw','cu'],null,{psw:K},'④ 中断隐指令之一：关中断，CPU 进入核心态','这一步由硬件自动完成，不是哪条指令做的。关中断是为了让接下来“保存断点”的过程不被打断。'),
+ S(['pc','psw','kstk'],['pc','kstk','PC、PSW'],{kstk:'P1 的断点（PC、PSW）'},'⑤ 中断隐指令之二：保存断点——把 PC 和 PSW 压入内核栈','断点就是“回来以后要执行的那条指令的地址”。PSW 也必须由硬件保存，因为一进入处理程序它就要被改掉。'),
+ S(['pic','idt','pc'],['pic','idt','中断类型号'],{pc:'键盘中断处理程序入口'},'⑥ 中断隐指令之三：用中断类型号查中断向量表，把处理程序入口地址送进 PC','这叫向量中断：类型号 → 向量地址 → 入口地址。到这里硬件的活干完了，下面交给软件。'),
+ S(['idt','reg','kstk'],['reg','kstk','通用寄存器'],{kstk:'断点 + P1 的现场',psw:K1},'⑦ 中断服务程序开始：保护现场和屏蔽字，然后开中断','现场指通用寄存器这些会被服务程序改掉的内容，由软件保存。开中断是为了允许更高级的中断嵌套进来。','保存断点是硬件（隐指令）做的；保护现场是软件（中断服务程序）做的。这是最常考的区分。'),
+ S(['dma','drv','buf'],['dma','buf','扫描码'],{buf:'键盘缓冲区：1 个字符',dma:''},'⑧ 执行中断服务：驱动程序从接口读走数据，放进内核缓冲区','如果有进程正阻塞着等键盘输入，这里会顺便把它唤醒（阻塞 → 就绪）。'),
+ S(['kstk','reg'],['kstk','reg','恢复现场'],{psw:K,kstk:'P1 的断点（PC、PSW）'},'⑨ 关中断，恢复现场和屏蔽字','恢复现场的过程同样不能被打断，所以先关中断。'),
+ S(['kstk','pc','psw'],['kstk','pc','断点'],{psw:U,pc:'P1 的下一条指令',kstk:'',pic:''},'⑩ 执行中断返回指令：从内核栈弹出 PC 和 PSW，回到用户态继续执行 P1','PSW 被恢复，里面的模式位自然变回用户态。核心态 → 用户态靠的就是这条特权指令。')],
+ yl:'外中断的处理 = ==中断隐指令（硬件）== + ==中断服务程序（软件）==。隐指令做三件事：==关中断、保存断点、引出中断服务程序==。服务程序：==保护现场和屏蔽字 → 开中断 → 执行服务 → 关中断 → 恢复现场和屏蔽字 → 开中断 → 中断返回==。',
+ err:'==保存断点（PC、PSW）是硬件做的；保护现场（通用寄存器）是软件做的==。外中断在==指令执行结束==时响应；中断处理程序运行在==核心态==，与被打断的进程无关。'},
+{g:0,t:'系统调用的完整过程（以 read 为例）',lv:3,at:['p1','lib','sci','psw','kstk','reg'],init:{psw:U,pc:'P1 的指令',pcb:'P1 运行'},steps:[
+ S(['p1','lib'],['p1','lib','read(fd, buf, n)'],null,'① 用户程序调用库函数 read()','这只是一次普通的函数调用，还在用户态。库函数是对系统调用的一层封装。'),
+ S(['lib','reg'],['lib','reg','系统调用号、参数'],{reg:'调用号 = read，参数'},'② 库函数把系统调用号和参数放进约定的寄存器','内核靠寄存器里的调用号知道你要哪项服务，参数也通过寄存器（或用户栈）传递。'),
+ S(['lib','cu'],['lib','cu','陷入指令'],null,'③ 库函数执行陷入指令（trap，也叫访管指令）','陷入指令是在用户态执行的，它不是特权指令。它唯一的作用，就是主动引发一次内中断。','“发出系统调用请求”在用户态；“处理系统调用”在核心态。两句话常放在一起考。'),
+ S(['psw','cu'],null,{psw:K},'④ CPU 响应这个陷阱：硬件把 PSW 的模式位改成核心态','用户态 → 核心态只有一条路：通过中断或异常，由硬件完成。用户程序自己改不了 PSW。'),
+ S(['pc','kstk'],['pc','kstk','PC、PSW'],{kstk:'P1 的断点（PC、PSW）'},'⑤ 硬件把断点（PC、PSW）保存到 P1 的内核栈','这里的断点是陷入指令的下一条指令，所以系统调用返回后会接着往下执行。'),
+ S(['idt','sci'],['idt','sci','转入系统调用入口'],{pc:'系统调用入口程序'},'⑥ 查中断向量表，转到系统调用的总入口程序','所有系统调用共用同一个陷阱号、同一个入口。'),
+ S(['sci','kstk','reg'],['reg','kstk','保存现场'],{kstk:'断点 + P1 的现场',sci:'查表：read → sys_read'},'⑦ 入口程序保存现场，再用系统调用号查系统调用表','系统调用号就是系统调用表的下标，表项里是内核服务例程的地址。'),
+ S(['sci','fs','oft'],['sci','oft','sys_read'],{oft:'按 fd 找到文件'},'⑧ 在核心态执行内核服务例程 sys_read','真正干活的是内核。这里如果要等磁盘，进程会阻塞（见“进程的阻塞与唤醒”）。'),
+ S(['reg','kstk'],['kstk','reg','返回值、恢复现场'],{reg:'返回值 = 读到的字节数',sci:''},'⑨ 服务完成：返回值放进寄存器，恢复现场',null),
+ S(['kstk','pc','psw'],['kstk','pc','断点'],{psw:U,pc:'陷入指令的下一条',kstk:''},'⑩ 执行中断返回指令，恢复 PC 和 PSW，回到用户态','中断返回指令是特权指令，它恢复 PSW 时把模式位变回了用户态。'),
+ S(['lib','p1'],['lib','p1','读到的字节数'],null,'⑪ 回到库函数，库函数再把结果返回给用户程序',null)],
+ yl:'系统调用是用户程序请求内核服务的==唯一接口==。过程：传参 → 执行==陷入指令== → 硬件切换到==核心态==并保存断点 → 按==系统调用号==查表 → 执行内核服务例程 → 恢复现场 → ==中断返回==到用户态。',
+ err:'==陷入指令不是特权指令==，它在用户态执行。用户态 → 核心态==只能==通过中断或异常；核心态 → 用户态是执行一条修改 PSW 的==特权指令==。系统调用是一次==模式切换==，不一定发生进程切换。'},
+{g:0,t:'异常（内中断）的三种类型',lv:3,at:['idt','cu'],a:{type:'grid',title:'内中断由 CPU 执行指令时在内部产生，与当前指令有关',lw:120,cw:176,cols:['例子','什么时候发现','处理完回到哪'],rows:['故障 fault','陷阱 trap','终止 abort'],steps:[
+ {set:[[0,0,'缺页、除数为 0、非法操作码','red'],[0,1,'指令执行过程中','red'],[0,2,'重新执行这条指令','red']],cap:'故障：指令执行中出了可以修复的问题。处理完后重新执行引起故障的那条指令',note:'缺页是最典型的故障：调入页面后，这条指令要重做一遍'},
+ {set:[[1,0,'系统调用、断点、单步','gold'],[1,1,'陷阱指令执行完','gold'],[1,2,'下一条指令','gold']],cap:'陷阱：程序有意设置的。处理完后回到陷阱指令的下一条',note:'系统调用用的陷入指令就是一种陷阱'},
+ {set:[[2,0,'硬件故障、电源掉电','blue'],[2,1,'随机发生','blue'],[2,2,'不返回，终止程序','blue']],cap:'终止：出现了无法恢复的严重硬件错误，不再返回原程序',note:'注意：终止与具体哪条指令无关'}],end:'故障回本条，陷阱回下一条，终止不回来'},
+ yl:'内中断（异常）分三类：==故障==（可修复，返回后==重新执行本指令==）、==陷阱==（有意设置，返回==下一条指令==）、==终止==（硬件严重错误，==不返回==）。',
+ ff:'外中断（如时钟、键盘、磁盘完成）来自 CPU 外部，==与当前指令无关==，在指令结束时响应；内中断==与当前指令有关==，在指令执行中响应。',
+ err:'==缺页==是故障，也是内中断，不是外中断；一条指令执行期间可能发生==多次==缺页。'},
+{g:0,t:'操作系统的引导（开机过程）',lv:2,at:['mem','disk','pc'],init:{mem:'ROM：BIOS',pc:'',psw:'核心态'},steps:[
+ S(['pc','mem'],['pc','mem','BIOS 入口地址'],{pc:'BIOS 入口'},'① 加电后，CPU 的 PC 被置为 ROM 里 BIOS 的入口地址','内存断电后内容就没了，所以第一段程序必须放在 ROM 里。'),
+ S(['mem','cpu','disk','kbd','scr'],null,null,'② BIOS 进行硬件自检，检查内存、键盘、磁盘等是否正常',null),
+ S(['disk','mem'],['disk','mem','主引导记录 MBR'],{mem:'ROM：BIOS｜MBR'},'③ BIOS 把磁盘第一个扇区（主引导记录 MBR）读入内存并执行','MBR 里有磁盘引导程序和分区表。'),
+ S(['disk','mem'],['disk','mem','分区引导记录'],{mem:'ROM：BIOS｜MBR｜分区引导程序'},'④ 磁盘引导程序根据分区表找到活动分区，读入它的分区引导记录',null),
+ S(['disk','mem'],['disk','mem','操作系统内核'],{mem:'ROM：BIOS｜内核'},'⑤ 分区引导程序在根目录里找到启动管理器，把操作系统内核装入内存','到这一步之前，操作系统一直躺在磁盘上。'),
+ S(['idt','pt','pcb','mem'],['mem','pcb','初始化'],{pcb:'第一个进程'},'⑥ 内核初始化：建立中断向量表、页表，创建第一个进程，然后等待用户','此后计算机才处在操作系统的管理之下。')],
+ yl:'引导过程：==CPU 加电执行 ROM 中的 BIOS== → ==硬件自检== → 读入==主引导记录 MBR== → 读入活动分区的==分区引导记录== → 加载==操作系统内核== → 内核初始化。',
+ err:'操作系统最初存放在==磁盘==上，不是 ROM 里；ROM 里放的是自举程序（BIOS）。'},
+/* ================= 进程管理 ================= */
+{g:1,t:'进程的状态转换',lv:3,at:['pcb','rq','bq'],a:null},
+{g:1,t:'时钟中断与进程切换（时间片轮转）',lv:3,at:['tmr','clk','sch','pcb','rq','kstk'],init:{psw:U,pc:'P1 的指令',pcb:'P1 运行｜P2 就绪｜P3 就绪',rq:'P2 → P3',clk:'P1 剩余时间片：1'},steps:[
+ S(['tmr','pic'],['tmr','pic','时钟中断'],null,'① 定时器每隔一个固定时间，发出一次时钟中断','这是分时系统和抢占式调度的硬件基础：没有时钟中断，操作系统就没有机会从用户进程手里拿回 CPU。'),
+ S(['cu','psw','kstk'],['pc','kstk','P1 的断点'],{psw:K,kstk:'P1 的断点',pc:'时钟中断处理程序'},'② P1 当前指令执行完，CPU 响应中断：进入核心态，保存 P1 的断点','到这里只是“模式切换”（用户态 → 核心态），CPU 还在 P1 的上下文里，进程并没有换。','模式切换不等于进程切换。'),
+ S(['idt','clk'],['idt','clk','转入处理程序'],{clk:'P1 剩余时间片：0'},'③ 时钟中断处理程序：更新系统时间，把当前进程的剩余时间片减 1',null),
+ S(['clk','sch'],['clk','sch','时间片用完'],null,'④ 时间片减到 0，需要重新调度，调用调度程序','不是每次时钟中断都会切换进程：时间片没用完就直接中断返回。'),
+ S(['reg','pc','pcb'],['reg','pcb','P1 的上下文'],{pcb:'P1 就绪｜P2 就绪｜P3 就绪'},'⑤ 把 P1 的上下文（寄存器、PC、PSW、栈指针等）保存进它的 PCB，状态由运行改为就绪','进程切换 = 保存旧进程的上下文 + 恢复新进程的上下文。上下文就存在 PCB（和内核栈）里。'),
+ S(['pcb','rq'],['pcb','rq','P1 排到队尾'],{rq:'P2 → P3 → P1'},'⑥ P1 的 PCB 插到就绪队列的队尾',null),
+ S(['sch','rq'],['rq','sch','选中 P2'],{rq:'P3 → P1'},'⑦ 调度程序按算法选出下一个进程：队首的 P2','“调度”是决定把 CPU 给谁，“切换”是真正把 CPU 交过去的动作。先调度，后切换。'),
+ S(['pt','mmu','tlb'],['pt','mmu','P2 的页表始址'],{mmu:'页表寄存器 → P2 的页表',tlb:'原有内容失效'},'⑧ 切换地址空间：把 P2 的页表始址装入页表寄存器，TLB 里原来的内容失效','每个进程有自己的页表。这也是进程切换比同一进程内的线程切换开销大的原因。'),
+ S(['pcb','reg'],['pcb','reg','P2 的上下文'],{pcb:'P2 运行｜P3 就绪｜P1 就绪',kstk:'P2 上次留下的断点'},'⑨ 从 P2 的 PCB 恢复它的上下文，状态由就绪改为运行',null),
+ S(['kstk','pc','psw'],['kstk','pc','P2 的断点'],{psw:U,pc:'P2 的指令',kstk:'',clk:'P2 剩余时间片：2'},'⑩ 中断返回：弹出的是 P2 的断点，回到用户态，运行的已经是 P2','P1 的断点还留在 P1 自己的内核栈里，等它下次被选中时再恢复。')],
+ yl:'进程切换的过程：==保存当前进程的上下文到 PCB== → 更新 PCB 状态并==移入相应队列== → ==调度程序选择==另一个进程 → 更新其 PCB → ==切换地址空间（页表）== → ==恢复其上下文==。',
+ err:'==模式切换==只是 CPU 状态变化，进程没换；==进程切换==一定在==核心态==下完成。==调度==是决策，==切换==是执行。时间片轮转里，用完时间片的进程是==运行 → 就绪==，不是阻塞。'},
+{g:1,t:'进程的创建',lv:3,at:['pcb','rq','p1','mm'],init:{psw:U,pcb:'P1 运行｜P2 就绪',rq:'P2'},steps:[
+ S(['p1','sci'],['p1','sci','创建进程（如 fork）'],{psw:K1},'① 父进程 P1 发出创建进程的系统调用，陷入内核','引起创建进程的事件：用户登录、作业调度、提供服务、应用请求。'),
+ S(['sci','pcb'],['sci','pcb','申请空白 PCB'],{pcb:'P1 运行｜P2 就绪｜P4 创建中'},'② 为新进程分配一个唯一的进程标识号，申请一个空白 PCB','PCB 是进程存在的唯一标志。PCB 申请不到，创建就失败。','PCB 是有限的；申请失败 = 创建失败。'),
+ S(['pcb','mm','fl'],['pcb','fl','申请内存'],{fl:'分给 P4 若干页框'},'③ 为新进程分配资源：程序、数据、用户栈所需的内存空间等','如果资源不足（比如内存不够），这时并不是创建失败，而是进程处于创建态等待资源。','资源不足 ≠ 创建失败。'),
+ S(['pcb'],null,null,'④ 初始化 PCB：填入标识信息、处理机状态信息、处理机控制信息，设置优先级',null),
+ S(['pcb','rq'],['pcb','rq','P4'],{rq:'P2 → P4',pcb:'P1 运行｜P2 就绪｜P4 就绪'},'⑤ 就绪队列能接纳的话，把新进程插入就绪队列：创建态 → 就绪态',null),
+ S(['sci','p1'],['sci','p1','返回'],{psw:U},'⑥ 系统调用返回，父进程继续运行；子进程等待被调度','创建原语执行期间不允许被中断。')],
+ yl:'创建原语的步骤：==分配进程标识号、申请空白 PCB== → ==分配资源== → ==初始化 PCB== → ==插入就绪队列==。',
+ err:'==PCB 申请失败则创建失败==；==资源不足则处于阻塞（等待）状态==，不是创建失败。父进程和子进程==共享一部分资源，但不共享虚拟地址空间==。'},
+{g:1,t:'进程的阻塞与唤醒（以读磁盘为例）',lv:3,at:['bq','rq','pcb','disk','drv','sch'],init:{psw:U,pc:'P1 的指令',pcb:'P1 运行｜P2 就绪',rq:'P2',bq:'空'},steps:[
+ S(['p1','sci'],['p1','sci','read()'],{psw:K1,kstk:'P1 的断点和现场'},'① P1 发出读文件的系统调用，陷入内核',null),
+ S(['fs','drv'],['oft','drv','读第 n 块'],null,'② 文件系统算出要读的物理块号，把请求交给磁盘驱动程序',null),
+ S(['drv','dma','disk'],['drv','disk','启动读操作'],{disk:'正在读…'},'③ 驱动向磁盘控制器写入命令，启动 I/O','磁盘是毫秒级的，CPU 是纳秒级的。让 CPU 干等，就是浪费几百万条指令的时间。'),
+ S(['pcb','bq'],['pcb','bq','P1'],{pcb:'P1 阻塞｜P2 就绪',bq:'P1（等磁盘）'},'④ P1 执行阻塞原语：保存现场，状态由运行改为阻塞，进入磁盘的等待队列','阻塞是进程自己调用原语、主动放弃 CPU，所以是“主动行为”。只有运行态的进程才可能阻塞自己。'),
+ S(['sch','rq','reg'],['rq','reg','P2 上 CPU'],{pcb:'P1 阻塞｜P2 运行',rq:'空',psw:U,pc:'P2 的指令',kstk:''},'⑤ 调度程序选出 P2 运行（发生进程切换），CPU 没有闲着',null),
+ S(['disk','dma','pic'],['disk','pic','磁盘中断'],{disk:'读完',buf:'第 n 块数据'},'⑥ 磁盘读完了，控制器发出中断。注意：这时正在运行的是 P2',null),
+ S(['pic','idt','drv'],['pic','idt','中断响应'],{psw:K,kstk:'P2 的断点'},'⑦ P2 被打断，CPU 进入磁盘中断处理程序','中断处理程序和当前被打断的进程（P2）毫无关系，它只是借用了 P2 的时间。'),
+ S(['bq','rq','pcb'],['bq','rq','P1'],{pcb:'P1 就绪｜P2 运行',bq:'空',rq:'P1'},'⑧ 中断处理程序执行唤醒原语：把 P1 从等待队列摘下，状态由阻塞改为就绪，插入就绪队列','唤醒是别的进程或中断处理程序替它做的，所以是“被动行为”。阻塞和唤醒必须成对出现。','阻塞态不能直接变成运行态，中间一定要经过就绪。'),
+ S(['kstk','pc'],['kstk','pc','P2 的断点'],{psw:U,kstk:''},'⑨ 中断返回，P2 继续运行。P1 要等调度程序选中它，才能回到运行态，从 read 返回',null)],
+ yl:'==阻塞原语==：找到 PCB → 保护现场、状态改为阻塞 → 插入相应事件的==等待队列== → 调度其他进程。==唤醒原语==：从等待队列找到 PCB → 移出、状态改为==就绪== → 插入==就绪队列==。',
+ err:'==阻塞是主动的==（自己调用），==唤醒是被动的==（别人调用）。==阻塞 → 运行不可能==直接发生。等待 I/O 完成的进程在==阻塞态==，不占用 CPU。'},
+{g:1,t:'进程的终止',lv:2,at:['pcb','mm'],init:{pcb:'P1 运行｜P2 就绪',rq:'P2',psw:K1},steps:[
+ S(['p1','sci'],['p1','sci','结束（如 exit）'],null,'① 进程正常结束、异常结束，或者被外界干预，都会进入终止流程',null),
+ S(['pcb'],['sci','pcb','按进程标识找 PCB'],null,'② 根据进程标识符找到它的 PCB，读出进程状态',null),
+ S(['pcb','sch'],['pcb','sch','停止运行'],{pcb:'P1 终止中｜P2 就绪'},'③ 如果它正在运行，立即终止执行，把 CPU 让给其他进程',null),
+ S(['pcb'],null,null,'④ 如果它还有子孙进程，通常把它们也一并终止（或交给其他进程托管）',null),
+ S(['pcb','mm','fs'],['pcb','fl','归还资源'],{fl:'回收 P1 的页框'},'⑤ 把它拥有的全部资源归还给父进程或操作系统',null),
+ S(['pcb','rq'],['rq','reg','P2 上 CPU'],{pcb:'P2 运行',rq:'空'},'⑥ 把 PCB 从所在的队列中删除。PCB 没了，这个进程就不存在了',null)],
+ yl:'终止（撤销）原语：==找到 PCB== → ==终止执行== → ==终止子孙进程== → ==归还资源== → ==删除 PCB==。',
+ err:'引起终止的三类事件：==正常结束、异常结束、外界干预==。'},
+{g:1,t:'信号量：P 操作与 V 操作（实现互斥）',lv:3,at:['sem','bq','rq'],init:{sem:'mutex = 1',pcb:'P1 运行｜P2 就绪',bq:'空',rq:'P2'},steps:[
+ S(['p1','sem'],['p1','sem','P(mutex)'],{sem:'mutex = 0',p1:'在临界区内'},'① P1 要进临界区，先执行 P(mutex)：mutex 减 1 得 0。0 ≥ 0，申请成功，P1 进入临界区','P 操作就是“申请一个资源”。互斥信号量初值为 1，表示临界区同一时刻只许一个进程进入。'),
+ S(['p2','sem'],['p2','sem','P(mutex)'],{sem:'mutex = −1',pcb:'P1 就绪｜P2 运行',rq:'P1'},'② 轮到 P2 运行，它也想进临界区，执行 P(mutex)：mutex 减 1 得 −1','P 和 V 都是原语，执行过程不会被打断，所以“减 1 再判断”不会出现两个进程同时通过的情况。'),
+ S(['sem','bq'],['sem','bq','P2'],{bq:'P2（等 mutex）',pcb:'P1 运行｜P2 阻塞',rq:'空'},'③ 结果小于 0，说明资源不够：P2 阻塞自己，进入这个信号量的等待队列','信号量小于 0 时，它的绝对值就是等待队列里的进程数。进程是去睡觉而不是原地空转，符合“让权等待”。'),
+ S(['p1','sem'],['p1','sem','V(mutex)'],{sem:'mutex = 0',p1:''},'④ P1 用完临界区，执行 V(mutex)：mutex 加 1 得 0','V 操作就是“释放一个资源”。'),
+ S(['bq','rq'],['bq','rq','P2'],{bq:'空',rq:'P2',pcb:'P1 运行｜P2 就绪'},'⑤ 加 1 后仍然 ≤ 0，说明有进程在等：唤醒等待队列里的 P2，P2 由阻塞变为就绪',null),
+ S(['p2','sem'],['rq','reg','P2 上 CPU'],{p2:'在临界区内',pcb:'P1 就绪｜P2 运行',rq:'P1'},'⑥ P2 被调度后进入临界区；它用完后再执行 V，mutex 回到 1',null)],
+ yl:'==P(S)==：S 减 1；若 ==S < 0==，进程阻塞并进入等待队列。==V(S)==：S 加 1；若 ==S ≤ 0==，唤醒等待队列中的一个进程。==S > 0== 表示可用资源数；==S < 0== 时 |S| 是等待进程数。',
+ ff:'实现==互斥==：信号量初值为 ==1==，P、V 夹住临界区，成对出现在==同一进程==。实现==同步==：初值为 ==0==，“前 V 后 P”，P、V 在==不同进程==。',
+ err:'P、V 是==原语==。记录型信号量不存在“忙等”。'},
+{g:1,t:'生产者—消费者问题',lv:3,at:['sem','buf'],init:{sem:'mutex = 1，empty = n，full = 0',buf:'缓冲区：空',p1:'生产者',p2:'消费者'},steps:[
+ S(['p1','sem'],['p1','sem','P(empty)'],{sem:'mutex = 1，empty = n−1，full = 0'},'① 生产者先执行 P(empty)：申请一个空缓冲区。没有空位就在这里阻塞','empty 是同步信号量：表示空缓冲区的数量，初值为 n。'),
+ S(['p1','sem'],['p1','sem','P(mutex)'],{sem:'mutex = 0，empty = n−1，full = 0'},'② 再执行 P(mutex)：申请进入临界区','mutex 是互斥信号量：保证同一时刻只有一个进程在操作缓冲区。','两个 P 的顺序不能颠倒：必须先申请资源（empty），再申请互斥（mutex）。'),
+ S(['p1','buf'],['p1','buf','放入产品'],{buf:'缓冲区：1 件'},'③ 把产品放进缓冲区',null),
+ S(['p1','sem'],['p1','sem','V(mutex)、V(full)'],{sem:'mutex = 1，empty = n−1，full = 1'},'④ V(mutex) 退出临界区；V(full) 告诉消费者“多了一件产品”','V 操作不会阻塞，所以两个 V 的顺序可以交换。'),
+ S(['p2','sem'],['p2','sem','P(full)、P(mutex)'],{sem:'mutex = 0，empty = n−1，full = 0'},'⑤ 消费者先 P(full)：申请一件产品；再 P(mutex) 进入临界区','如果消费者先 P(mutex) 再 P(full)，而此时缓冲区是空的：它握着 mutex 睡着了，生产者永远进不来 —— 死锁。'),
+ S(['buf','p2'],['buf','p2','取走产品'],{buf:'缓冲区：空',sem:'mutex = 1，empty = n，full = 0'},'⑥ 取走产品，V(mutex)、V(empty)：归还一个空位',null)],
+ yl:'三个信号量：==mutex = 1==（互斥访问缓冲区）、==empty = n==（空缓冲区数）、==full = 0==（产品数）。生产者：==P(empty) → P(mutex) → 放 → V(mutex) → V(full)==；消费者：==P(full) → P(mutex) → 取 → V(mutex) → V(empty)==。',
+ err:'==实现互斥的 P 操作必须放在实现同步的 P 操作之后==，否则可能死锁；V 操作的顺序无所谓。'},
+/* ================= 内存管理 ================= */
+{g:2,t:'分页管理的地址变换',lv:3,at:['mmu','tlb','pt','mem'],init:{mmu:'页表寄存器：始址 F，长度 M',pc:'访存指令',pt:'P1 的页表'},steps:[
+ S(['cu','mmu'],['cu','mmu','逻辑地址 A'],null,'① CPU 给出逻辑地址 A，MMU 把它拆成两段：页号 P = A ÷ 页面大小，页内偏移 W = A mod 页面大小','页面大小是 2 的整数次幂时，根本不用做除法：地址的高位就是页号，低位就是偏移。'),
+ S(['mmu'],null,{mmu:'比较：P < M ？'},'② 越界检查：页号 P 如果 ≥ 页表长度 M，就产生越界中断','页表长度指的是页表有多少项，也就是这个进程有多少页。'),
+ S(['mmu','tlb'],['mmu','tlb','页号 P'],{tlb:'查找页号 P'},'③ 先查快表 TLB：命中的话直接得到页框号，不用访问内存里的页表','TLB 是相联存储器，按内容并行查找，速度极快，但容量小，只放最近用过的页表项。'),
+ S(['mmu','pt','mem'],['mmu','pt','F + P × 页表项长度'],{tlb:'未命中'},'④ TLB 没命中：用“页表始址 + 页号 × 页表项长度”算出页表项的地址，访问内存取出页框号（第一次访存）','页表项是连续存放的，所以页号本身不用存在页表里，它是隐含的。'),
+ S(['pt','mmu','tlb'],['pt','mmu','页框号 b'],{mmu:'物理地址 = b × 页面大小 + W',tlb:'装入 P → b'},'⑤ 得到页框号 b，同时把这个页表项装入 TLB；物理地址 E = b × 页面大小 + W',null),
+ S(['mmu','mem'],['mmu','mem','物理地址 E'],{mem:'访问 E 号单元'},'⑥ 用物理地址访问主存，取到数据（第二次访存）',null)],
+ yl:'页号 ==P = A / L==，偏移 ==W = A % L==；先做==越界检查==，再查 ==TLB==，未命中则访问==页表==得到页框号 b；物理地址 ==E = b × L + W==。',
+ ff:'访存次数：单级页表无 TLB 是 ==2 次==；TLB 命中是 ==1 次==；二级页表无 TLB 是 ==3 次==。有效访问时间按命中率加权。',
+ err:'页表寄存器里的“页表长度”是==页表项的个数==；页表项长度是==每一项占多少字节==，别混。'},
+{g:2,t:'缺页中断的完整过程',lv:3,at:['pf','pt','fl','disk','mmu'],init:{psw:U,pc:'一条访存指令',pcb:'P1 运行｜P2 就绪',rq:'P2',pt:'该页：有效位 = 0'},steps:[
+ S(['mmu','pt'],['mmu','pt','查页表'],null,'① MMU 查页表，发现要访问的页有效位（状态位）是 0：这一页不在内存',null),
+ S(['mmu','idt','psw'],['mmu','idt','缺页异常'],{psw:K,kstk:'P1 的断点：这条指令本身'},'② 产生缺页中断，CPU 进入核心态','缺页属于内中断里的“故障”：在指令执行过程中产生；保存的断点是这条指令自己，因为回来要重新执行它。','一条指令执行过程中可能产生多次缺页中断。'),
+ S(['idt','pf'],['idt','pf','转入处理程序'],null,'③ 保存现场，转入缺页中断处理程序',null),
+ S(['pf','fl'],['pf','fl','要一个页框'],{fl:'没有空闲页框 → 选一页换出'},'④ 查空闲页框表：有空闲页框就直接分配；没有，就用页面置换算法选一页淘汰',null),
+ S(['fl','disk'],['fl','disk','写回脏页'],{disk:'写入被换出的页'},'⑤ 被淘汰的页如果修改位是 1（被改过），要先写回外存；没改过就直接覆盖','修改位的意义就在这里：没被改过的页，外存上已经有一份一样的，不用再写。'),
+ S(['pf','disk','bq'],['pf','disk','读入所缺的页'],{pcb:'P1 阻塞｜P2 运行',bq:'P1（等磁盘）',rq:'空',disk:'读入缺的那一页'},'⑥ 启动磁盘把缺的页读进页框。这段时间 P1 阻塞，CPU 交给别的进程','缺页处理中有磁盘 I/O，所以缺页的代价非常高，这就是为什么缺页率一高系统就变慢。'),
+ S(['disk','pic','bq','rq'],['disk','pic','磁盘中断'],{pcb:'P1 就绪｜P2 运行',bq:'空',rq:'P1',disk:''},'⑦ 磁盘读完发出中断，P1 被唤醒',null),
+ S(['pf','pt','tlb'],['pf','pt','页框号，有效位 = 1'],{pt:'该页：有效位 = 1',fl:''},'⑧ 修改页表项：填入页框号，有效位置 1；被换出那一页的有效位清 0',null),
+ S(['kstk','pc'],['kstk','pc','回到那条指令'],{psw:U,pcb:'P1 运行｜P2 就绪',rq:'P2',kstk:''},'⑨ 恢复现场，返回到引起缺页的那条指令，重新执行。这次地址变换成功',null)],
+ yl:'缺页中断处理：==保存现场== → 有空闲页框则分配，否则==置换算法选页== → 被换出的页若==修改过则写回外存== → ==从外存调入==所缺页 → ==修改页表== → 恢复现场，==重新执行==被中断的指令。',
+ err:'缺页中断是==内中断（故障）==，在==指令执行期间==产生和处理；返回后==重新执行该指令==；一条指令可能==多次==缺页。'},
+{g:2,t:'页面置换：FIFO',lv:3,at:['fl','pt'],a:null},
+{g:2,t:'页面置换：LRU',lv:3,at:['fl','pt'],a:null},
+/* ================= 文件与 I/O ================= */
+{g:3,t:'打开文件：open 做了什么',lv:3,at:['oft','ino','disk'],init:{psw:U,oft:'空',ino:''},steps:[
+ S(['p1','sci'],['p1','sci','open("/a/b.txt")'],{psw:K1},'① 进程发出 open 系统调用，给出文件的路径名',null),
+ S(['sci','ino'],['sci','ino','逐级查目录'],{ino:'根目录 → a → b.txt'},'② 文件系统按路径名逐级检索目录：先查根目录找到 a，再在 a 里找 b.txt','每查一级目录都可能要读一次磁盘。目录越深，open 越慢。'),
+ S(['ino','disk','buf'],['disk','ino','b.txt 的 inode'],{ino:'内存 inode：b.txt'},'③ 找到目录项后，把这个文件的索引结点（FCB）从磁盘读入内存','文件的属性和磁盘块地址都在 inode 里，以后读写都要用它。'),
+ S(['ino','oft'],['ino','oft','新建表项'],{oft:'系统表：b.txt，计数 = 1'},'④ 在系统打开文件表里建一个表项，指向内存里的 inode，打开计数置为 1','如果别的进程已经打开了这个文件，就不新建，只把打开计数加 1。'),
+ S(['oft','p1'],null,{oft:'系统表：b.txt，计数 = 1｜进程表：fd = 3'},'⑤ 在这个进程的打开文件表里建一个表项：读写指针、访问权限，并指向系统表项','读写指针是每个进程各自一份的，所以两个进程读同一个文件互不影响。'),
+ S(['sci','p1'],['sci','p1','fd = 3'],{psw:U},'⑥ 把进程打开文件表的下标——文件描述符 fd——返回给进程','以后 read、write 只用 fd，不再用文件名，也不用再检索目录。这就是“先打开再使用”的意义。')],
+ yl:'open：==按路径名检索目录== → 把文件的 ==FCB（inode）调入内存== → 在==系统打开文件表==和==进程打开文件表==中建立表项 → 返回==文件描述符==。',
+ err:'open ==不读文件内容==，只把目录项（FCB）读入内存；之后的读写用==文件描述符==而不是文件名。系统打开文件表==全系统只有一张==。'},
+{g:3,t:'读文件：数据从磁盘到用户进程',lv:3,at:['buf','ino','drv','disk','oft'],init:{psw:U,oft:'进程表：fd = 3 → 系统表 → inode',pcb:'P1 运行'},steps:[
+ S(['p1','sci'],['p1','sci','read(3, buf, n)'],{psw:K1},'① 进程用文件描述符发出 read 系统调用',null),
+ S(['sci','oft'],['sci','oft','fd = 3'],null,'② 内核用 fd 查进程打开文件表，再找到系统表项和内存 inode，检查访问权限',null),
+ S(['oft','ino'],['oft','ino','读写指针'],{ino:'逻辑块号 → 物理块号'},'③ 由读写指针算出要读的是文件的第几个逻辑块，再通过 inode 里的地址项（直接、间接索引）换成磁盘物理块号','逻辑块号到物理块号的转换，就是文件“物理结构”要解决的问题。'),
+ S(['ino','buf'],['ino','buf','这一块在缓存里吗'],null,'④ 先查内核的磁盘块高速缓存：这一块已经在内存里的话，就不用读盘了',null),
+ S(['buf','drv','disk'],['drv','disk','读物理块'],{pcb:'P1 阻塞',disk:'正在读…'},'⑤ 不在缓存里：通过设备驱动向磁盘发读命令，进程阻塞等待',null),
+ S(['disk','dma','buf','pic'],['disk','buf','数据块'],{buf:'数据块已到',disk:'',pcb:'P1 就绪'},'⑥ 磁盘把这一块读进内核缓冲区，然后发中断，进程被唤醒','块设备一般用 DMA 方式：数据直接从磁盘送到内存，不经过 CPU。'),
+ S(['buf','p1'],['buf','p1','复制 n 字节'],{psw:U,pcb:'P1 运行'},'⑦ 内核把数据从内核缓冲区复制到进程自己的 buf，移动读写指针，返回读到的字节数','用户进程不能直接访问内核缓冲区，所以必须由内核复制一次。')],
+ yl:'read 的通路：==fd → 打开文件表 → inode== → ==逻辑块号 → 物理块号== → 查==缓冲区== → ==设备驱动 → 磁盘== → 数据到==内核缓冲区== → ==复制到用户空间==。',
+ err:'read 之前必须先 open；read 的参数是==文件描述符==，不是文件名。'},
+{g:3,t:'I/O 软件的层次（以输出一行字为例）',lv:3,at:['dev','drv','scr','lib'],init:{psw:U},steps:[
+ S(['p1','lib'],['p1','lib','printf("…")'],null,'① 用户层软件：库函数 printf 把数据格式化成字符串，然后发出 write 系统调用','用户层软件负责和用户打交道，实现库函数；SPOOLing 也在这一层。'),
+ S(['lib','sci','dev'],['sci','dev','write(设备, 数据)'],{psw:K1,dev:'逻辑设备名 → 物理设备名'},'② 设备独立性软件：向上提供统一接口，查逻辑设备表把逻辑设备名映射到物理设备，并做缓冲、差错处理、设备分配','这一层让用户程序不用关心具体是哪台设备。'),
+ S(['dev','drv'],['dev','drv','输出这些字符'],{drv:'换成对寄存器的读写'},'③ 设备驱动程序：把“输出这些字符”这种抽象要求，转换成对设备控制器寄存器的具体操作','每类设备一个驱动，由厂商提供；它是直接和硬件打交道的软件。'),
+ S(['drv','dma','scr'],['drv','scr','写控制器寄存器'],{scr:'显示字符'},'④ 硬件执行 I/O 操作',null),
+ S(['scr','pic','idt'],['dma','idt','完成中断'],{psw:K},'⑤ 中断处理程序：I/O 完成后设备发中断，由中断处理程序检查状态、读走或送出下一批数据、唤醒驱动',null),
+ S(['idt','p1'],['idt','p1','返回'],{psw:U,scr:''},'⑥ 逐层返回，系统调用结束，用户程序继续',null)],
+ yl:'I/O 软件自上而下四层：==用户层软件== → ==设备独立性软件== → ==设备驱动程序== → ==中断处理程序==，最下面是硬件。',
+ ff:'判断某项功能在哪一层：==与具体设备无关==的（缓冲、分配、统一命名、差错处理的统一部分）在设备独立性软件；==直接读写控制器寄存器==的在驱动程序。',
+ err:'把逻辑块号转换成磁头、柱面、扇区号是==设备驱动程序==做的。'},
+/* ================= 计组 ================= */
+{g:4,t:'取指周期',lv:3,at:['pc','mar','mdr','ir','mem'],init:{pc:'100',mem:'100 号单元：ADD 200'},steps:[
+ S(['pc','mar'],['pc','mar','(PC)→MAR'],{mar:'100'},'① (PC)→MAR：把要取的指令的地址送到地址寄存器',null),
+ S(['cu','mem'],['cu','mem','1→R'],null,'② 1→R：控制器发出读命令',null),
+ S(['mem','mdr'],['mem','mdr','M(MAR)→MDR'],{mdr:'ADD 200'},'③ M(MAR)→MDR：主存把 100 号单元的内容经数据总线送进 MDR',null),
+ S(['mdr','ir'],['mdr','ir','(MDR)→IR'],{ir:'ADD 200'},'④ (MDR)→IR：指令送进指令寄存器',null),
+ S(['ir','cu'],['ir','cu','OP(IR)→CU'],{cu:'译码：ADD'},'⑤ OP(IR)→CU：操作码送控制器译码',null),
+ S(['pc'],null,{pc:'101'},'⑥ (PC)+1→PC：PC 指向下一条指令','这里的“1”是指一条指令的长度，不一定是数值 1。')],
+ yl:'取指周期：==(PC)→MAR==，==1→R==，==M(MAR)→MDR==，==(MDR)→IR==，OP(IR)→CU，==(PC)+1→PC==。',
+ err:'取指周期是所有指令的==公共操作==。CPU 靠==所处的周期==区分取出来的是指令还是数据。'},
+{g:4,t:'间址周期',lv:2,at:['ir','mar','mdr','mem'],init:{pc:'101',ir:'ADD @200',mem:'200 号单元：300'},steps:[
+ S(['ir','mar'],['ir','mar','Ad(IR)→MAR'],{mar:'200'},'① Ad(IR)→MAR：指令里的形式地址送 MAR',null),
+ S(['cu','mem'],['cu','mem','1→R'],null,'② 1→R：发读命令',null),
+ S(['mem','mdr'],['mem','mdr','M(MAR)→MDR'],{mdr:'300'},'③ M(MAR)→MDR：读出来的 300 才是操作数的有效地址',null),
+ S(['mdr','ir'],['mdr','ir','(MDR)→Ad(IR)'],{ir:'ADD 300'},'④ (MDR)→Ad(IR)：有效地址送回指令的地址码字段',null)],
+ yl:'间址周期取的是==操作数的有效地址==：Ad(IR)→MAR，1→R，M(MAR)→MDR，==(MDR)→Ad(IR)==。',err:'只有==间接寻址==的指令才有间址周期；一次间址多访存 ==1 次==。'},
+{g:4,t:'执行周期（以 ADD 为例）',lv:3,at:['alu','acc','mar','mdr','mem'],init:{pc:'101',ir:'ADD 300',acc:'5',mem:'300 号单元：7'},steps:[
+ S(['ir','mar'],['ir','mar','Ad(IR)→MAR'],{mar:'300'},'① Ad(IR)→MAR：操作数地址送 MAR',null),
+ S(['cu','mem'],['cu','mem','1→R'],null,'② 1→R：发读命令',null),
+ S(['mem','mdr'],['mem','mdr','M(MAR)→MDR'],{mdr:'7'},'③ M(MAR)→MDR：取出操作数 7',null),
+ S(['mdr','acc','alu'],['mdr','alu','(MDR)'],{alu:'5 + 7'},'④ ACC 和 MDR 的内容送 ALU 相加',null),
+ S(['alu','acc'],['alu','acc','12'],{acc:'12',alu:''},'⑤ (ACC)+(MDR)→ACC：结果写回累加器',null)],
+ yl:'ADD X 的执行周期：==Ad(IR)→MAR==，1→R，==M(MAR)→MDR==，==(ACC)+(MDR)→ACC==。',err:'不同指令的执行周期微操作不同；指令周期 = 取指 →（间址）→ 执行 →（中断）。'},
+{g:4,t:'Cache 的访问过程',lv:3,at:['cache','mem'],init:{mar:'主存地址'},steps:[
+ S(['mar','cache'],['mar','cache','主存地址'],{cache:'比较标记'},'① CPU 给出主存地址，先拿标记到 Cache 里比对',null),
+ S(['cache','mdr'],['cache','mdr','命中：数据'],{cache:'命中',mdr:'数据'},'② 命中：直接从 Cache 取数，不访问主存',null),
+ S(['cache','mem'],['cache','mem','不命中'],{cache:'不命中',mdr:''},'③ 不命中：转去访问主存',null),
+ S(['mem','mdr'],['mem','mdr','所需的字'],{mdr:'数据'},'④ 从主存读出所需的字送 CPU',null),
+ S(['mem','cache'],['mem','cache','整块调入'],{cache:'装入新块'},'⑤ 同时把这个字所在的整个主存块调入 Cache，满了就按替换算法换出一块','Cache 和主存之间以“块”为单位交换，这正是利用了空间局部性。')],
+ yl:'先查 Cache：==命中==直接读；==不命中==访问主存并把所在==块==调入 Cache。依据是==程序访问的局部性原理==。',
+ ff:'==命中率 H = Nc / (Nc + Nm)==；平均访问时间 ==Ta = H·Tc + (1−H)·Tm==。',err:'Cache 对==所有程序员透明==，全由硬件实现。'},
+{g:4,t:'Cache 与主存的三种映射',lv:3,at:['cache','mem'],a:null},
+{g:4,t:'DMA 方式传送数据',lv:3,at:['dma','disk','mem'],init:{},steps:[
+ S(['cu','dma'],['cu','dma','预处理'],{dma:'主存始址、传送字数已设好'},'① 预处理：CPU 把主存起始地址、传送字数写进 DMA 控制器，然后去做别的事',null),
+ S(['disk','dma'],['disk','dma','DMA 请求'],null,'② 设备准备好数据，向 DMA 控制器发 DMA 请求',null),
+ S(['dma','cu'],['dma','cu','总线请求'],null,'③ DMA 控制器向 CPU 申请总线',null),
+ S(['cu'],null,{cu:'让出总线'},'④ CPU 在当前存取周期结束后让出总线','DMA 请求的响应时机是“存取周期结束”，比中断（指令周期结束）更快。'),
+ S(['dma','mem','disk'],['dma','mem','数据块'],{mem:'数据已写入'},'⑤ 数据在设备和主存之间直接传送，不经过 CPU，由硬件完成',null),
+ S(['dma','pic','cu'],['dma','pic','中断请求'],{cu:'后处理',dma:'传送完毕'},'⑥ 整块传完，DMA 控制器发中断请求，CPU 做后处理',null)],
+ yl:'DMA：==预处理== → ==数据传送==（硬件完成，不经过 CPU）→ ==后处理==（中断）。',
+ err:'DMA 请求在==存取周期结束==时响应；中断请求在==指令周期结束==时响应。DMA 方式里的中断只用于==后处理==。'},
+{g:4,t:'指令流水线',lv:2,at:['cu','alu'],a:null},
+/* ================= 网络 ================= */
+{g:5,t:'发送数据：穿过内核协议栈',lv:2,at:['net','nic','app'],init:{psw:U},steps:[
+ S(['app','sci'],['app','sci','send(数据)'],{psw:K1},'① 应用程序通过套接字系统调用把数据交给内核',null),
+ S(['sci','net'],['sci','net','应用数据'],{net:'TCP：加首部'},'② 传输层：TCP 把数据分段，加上 TCP 首部（端口、序号、确认号）',null),
+ S(['net'],null,{net:'IP：加首部、查路由表'},'③ 网络层：加上 IP 首部（源、目的 IP 地址），查路由表决定下一跳',null),
+ S(['net','drv'],['net','drv','IP 数据报'],{net:'ARP：求下一跳的 MAC',drv:'封装成帧'},'④ 用 ARP 得到下一跳的 MAC 地址，封装成帧，交给网卡驱动',null),
+ S(['drv','nic'],['drv','nic','帧'],{nic:'发送比特流'},'⑤ 网卡把帧变成比特流发送到链路上',null),
+ S(['nic','pic'],['nic','pic','发送完成中断'],{nic:'',psw:U},'⑥ 发送完成后网卡产生中断，内核继续发下一帧',null)],
+ yl:'发送方向：应用层数据 → ==TCP 报文段== → ==IP 数据报== → ==帧== → 比特流；每一层加上自己的首部。',err:'传输层及以上的协议实现在主机里，路由器只到==网络层==。'},
+{g:5,t:'分层与数据封装',lv:3,at:['net'],a:null},
+{g:5,t:'TCP 三次握手',lv:3,at:['net'],a:null},
+{g:5,t:'TCP 四次挥手',lv:3,at:['net'],a:null},
+{g:5,t:'ARP 地址解析',lv:2,at:['net','nic'],a:null},
+{g:5,t:'DNS 域名解析',lv:2,at:['app','net'],a:null},
+/* ================= 数据结构 ================= */
+{g:6,t:'快速排序：一趟划分',lv:3,at:['p1'],a:null},
+{g:6,t:'冒泡排序',lv:2,at:['p1'],a:null},
+{g:6,t:'直接插入排序',lv:2,at:['p1'],a:null},
+{g:6,t:'散列表：线性探测法',lv:3,at:['p1'],a:null},
+{g:6,t:'二叉树遍历：先序',lv:3,at:['p1'],a:null},
+{g:6,t:'二叉树遍历：中序',lv:3,at:['p1'],a:null},
+{g:6,t:'二叉树遍历：后序',lv:3,at:['p1'],a:null},
+];
+/* 没写 a 的条目，从旧数据里按标题取动画和文字 */
+LS.forEach(l=>{if(l.steps||l.a)return;const o=OLD.find(x=>x.t===l.t||x.t.replace('时间片轮转调度（RR）','x')===l.t);if(o){l.a=o.a;l.yl=o.yl;l.ff=o.ff;l.err=o.err}});
+{const o=OLD.find(x=>x.t==='时间片轮转调度（RR）');LS.splice(LS.findIndex(l=>l.t==='时钟中断与进程切换（时间片轮转）')+1,0,{g:1,t:'时间片轮转调度：甘特图',lv:3,at:['sch','rq'],a:o.a,yl:o.yl,ff:o.ff,err:o.err})}
+
+LS.forEach((l,i)=>l.id=i);
+const st={view:'home',comp:null,cur:-1,step:0,minLv:1,blank:false,play:false,all:false};
+try{st.minLv=+localStorage.getItem('m408.lv')||1}catch(e){}
+const vis=l=>l.lv>=st.minLv;
+const isFlow=l=>!!l.steps;
+
+/* ===== 大图 ===== */
+const map=$('#map'),W0=1700,H0=1190;let vb={x:0,y:0,w:W0,h:H0};
+const mk=(tag,at,par)=>{const el=document.createElementNS(NS,tag);for(const k in at)el.setAttribute(k,at[k]);par&&par.appendChild(el);return el};
+const ctr=id=>{const m=MP[id];return[m[0]+m[2]/2,m[1]+m[3]/2]};
+const LC={u:'var(--jade)',k:'var(--gold)',h:'#8fa3ba'};
+const BUS=[[1078,'地址总线','#8cc8ff'],[1098,'数据总线','#9be8bf'],[1118,'控制总线','#ffd27a']];
+const P=(d,cls,par,ex)=>mk('path',Object.assign({d,class:cls},ex||{}),par);
+const edge=(a,side)=>{const m=MP[a];return side==='t'?[m[0]+m[2]/2,m[1]]:side==='b'?[m[0]+m[2]/2,m[1]+m[3]]:side==='l'?[m[0],m[1]+m[3]/2]:[m[0]+m[2],m[1]+m[3]/2]};
+function drawMap(){map.innerHTML=`<defs><marker id="ma" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0L10,5L0,10z" fill="context-stroke"/></marker></defs>`;
+  /* —— 软件：其实都装在主存里 —— */
+  mk('path',{d:'M910,696 L40,618 H1660 L1200,696 Z',fill:'rgba(36,99,176,.07)',stroke:'rgba(36,99,176,.35)','stroke-dasharray':'6 6'},map);
+  mk('text',{x:850,y:660,class:'zs','text-anchor':'middle','font-weight':700,fill:'var(--blue)','font-size':14},map).textContent='↑ 把主存放大看：里面装的就是内核和各个进程的代码、数据';
+  mk('rect',{x:40,y:28,width:1620,height:590,rx:18,fill:'#fff',stroke:'var(--line2)',class:'zone'},map);
+  mk('rect',{x:40,y:28,width:1620,height:206,rx:18,fill:'#eaf7f2',stroke:'none'},map);mk('rect',{x:40,y:214,width:1620,height:20,fill:'#eaf7f2'},map);
+  mk('text',{x:64,y:58,class:'zt',fill:'var(--jade)'},map).textContent='用户空间';mk('text',{x:158,y:58,class:'zs'},map).textContent='CPU 处于用户态：只能执行非特权指令，只能访问自己的地址空间';
+  mk('rect',{x:40,y:234,width:1620,height:384,fill:'#fff8ea'},map);mk('rect',{x:40,y:590,width:1620,height:28,rx:14,fill:'#fff8ea'},map);
+  mk('rect',{x:40,y:28,width:1620,height:590,rx:18,fill:'none',stroke:'var(--line2)','stroke-width':1.5},map);
+  mk('line',{x1:40,y1:234,x2:1660,y2:234,stroke:'var(--red)','stroke-width':2.5,'stroke-dasharray':'10 6'},map);
+  mk('rect',{x:560,y:221,width:580,height:26,rx:13,fill:'#fff',stroke:'var(--red)'},map);mk('text',{x:850,y:234,'text-anchor':'middle','dominant-baseline':'central','font-size':13,'font-weight':700,fill:'var(--red)'},map).textContent='用户态 / 核心态的边界：只能通过 中断 · 异常 · 系统调用（陷入）穿过';
+  mk('text',{x:64,y:262,class:'zt',fill:'var(--gold)'},map).textContent='操作系统内核';mk('text',{x:194,y:262,class:'zs'},map).textContent='CPU 处于核心态：可以执行特权指令，管理所有硬件';
+  /* 用户 → 内核 的入口 */
+  [['lib','sci','陷入指令'],['p1','idt','中断 / 异常']].forEach(([a,b,t])=>{const s_=edge(a,'b'),e=edge(b,'t');P(`M${s_[0]},${s_[1]} C${s_[0]},${s_[1]+50} ${e[0]},${e[1]-50} ${e[0]},${e[1]-3}`,'call',map,{'marker-end':'url(#ma)',stroke:'var(--red)','stroke-width':2});mk('text',{x:s_[0]+10,y:s_[1]+18,class:'wl',fill:'var(--red)'},map).textContent='↓ '+t});
+  /* 内核内部的调用关系 */
+  P('M220,354 V366 M550,354 V366 M845,354 V366 M1105,354 V366 M220,366 H1465','call',map,{'stroke-width':2.2});
+  [['pm',320],['mm',760],['fs',1110],['io',1465]].forEach(([k,x])=>P(`M${x},366 V381`,'call',map,{'stroke-width':2.2,'marker-end':'url(#ma)'}));
+  mk('text',{x:1480,y:362,class:'zs','font-size':12},map).textContent='入口程序把请求分发给各模块';
+  [['oft','ino','b','t'],['ino','buf','r','l'],['dev','drv','b','t'],['pf','fl','b','t'],['pf','pt','l','r'],['sch','rq','r','l'],['pcb','rq','r','l'],['sch','pcb','t','b']].forEach(([a,b,sa,sb])=>{const s_=edge(a,sa),e=edge(b,sb);P(`M${s_[0]},${s_[1]} L${e[0]+(sb==='l'?-3:sb==='r'?3:0)},${e[1]+(sb==='t'?-3:sb==='b'?3:0)}`,'call',map,{'marker-end':'url(#ma)'})});
+  P(`M${MP.buf[0]+MP.buf[2]},${MP.buf[1]+33} C1290,${MP.buf[1]+33} 1290,${MP.drv[1]+33} ${MP.drv[0]-3},${MP.drv[1]+33}`,'call',map,{'marker-end':'url(#ma)'});
+  P(`M${MP.drv[0]+67},${MP.drv[1]+66} V640 H1342 V${MP.dma[1]-3}`,'call',map,{stroke:'var(--blue)','stroke-width':2,'stroke-dasharray':'3 5','marker-end':'url(#ma)'});mk('text',{x:1396,y:636,class:'wl',fill:'var(--blue)'},map).textContent='驱动读写接口里的寄存器';
+  /* —— 硬件：一块主板 —— */
+  mk('rect',{x:40,y:676,width:1620,height:486,rx:22,fill:'var(--board)',stroke:'var(--board2)','stroke-width':4},map);
+  [[62,698],[1638,698],[62,1140],[1638,1140]].forEach(([x,y])=>{mk('circle',{cx:x,cy:y,r:9,fill:'var(--stage)',stroke:'var(--trace)','stroke-width':3},map)});
+  mk('text',{x:90,y:1150,'font-size':15,'font-weight':700,fill:'#9fd3c0','letter-spacing':'.1em'},map).textContent='硬件（主板）';
+  BUS.forEach(([y,t,c])=>{mk('line',{x1:86,y1:y,x2:1640,y2:y,stroke:c,'stroke-width':7,'stroke-linecap':'round'},map);mk('text',{x:1632,y:y-9,'font-size':12,'font-weight':700,fill:c,'text-anchor':'end'},map).textContent=t});
+  mk('text',{x:760,y:1150,'font-size':13,fill:'#9fd3c0','text-anchor':'middle'},map).textContent='系统总线：CPU、主存、各个 I/O 接口都挂在它上面，一次只能有一对部件使用';
+  /* 部件到总线的引线 */
+  const tap=(id,bi,dx=0)=>{const m=MP[id],x=m[0]+m[2]/2+dx;P(`M${x},${m[1]+m[3]} V${BUS[bi][0]}`,'wire',map,{stroke:BUS[bi][2]});mk('circle',{cx:x,cy:BUS[bi][0],r:5,fill:BUS[bi][2]},map)};
+  /* CPU 内部数据通路 */
+  [['pc','mar','b','t'],['mar','mmu','r','l'],['mdr','ir','t','b'],['ir','cu','t','b'],['mdr','acc','r','l'],['acc','alu','t','b'],['mmu','tlb','b','t'],['mdr','cache','r','l'],['cu','psw','r','l']].forEach(([a,b,sa,sb])=>{const s_=edge(a,sa),e=edge(b,sb);P(`M${s_[0]},${s_[1]} L${e[0]},${e[1]}`,'wire',map,{'stroke-width':1.8,opacity:.75})});
+  /* 中断请求线 */
+  [['tmr','pic','l','r'],['dma','pic','t','b'],['disk','dma','l','r'],['kbd','dma','t','b'],['scr','dma','t','b'],['nic','dma','t','b']].forEach(([a,b,sa,sb],i)=>{const s_=edge(a,sa),e=edge(b,sb);const x2=i>=3?MP.dma[0]+30+(i-3)*60:e[0];P(i>=3?`M${s_[0]},${s_[1]} V${s_[1]-8} H${x2} V${e[1]}`:`M${s_[0]},${s_[1]} L${e[0]},${e[1]}`,i===0||i===1?'irq':'wire',map,i===0||i===1?{}:{'stroke-width':2})});
+  P(`M${MP.pic[0]},${MP.pic[1]+20} H1224 V684 H176 V${MP.cu[1]}`,'irq',map,{'marker-end':'url(#ma)'});mk('text',{x:560,y:679,class:'wl',fill:'#ffb3a3','text-anchor':'middle'},map).textContent='中断请求线 INTR';
+  /* CPU 正在执行谁 */
+  P(`M${MP.pc[0]},${MP.pc[1]+30} H22 V135 H${MP.p1[0]-4}`,'call',map,{stroke:'var(--jade)','stroke-width':2.2,'stroke-dasharray':'3 5','marker-end':'url(#ma)'});
+  mk('text',{x:14,y:420,'font-size':12.5,'font-weight':700,fill:'var(--jade)',transform:'rotate(-90 14 420)','text-anchor':'middle'},map).textContent='PC 指向谁，CPU 就在执行谁';
+  /* 部件 */
+  for(const id in MP){const [x,y,w,h,n,kind,layer]=MP[id];const box=kind==='c',hw=layer==='h';
+    if(id==='cpu'){for(let k=0;k<26;k++){mk('rect',{x:x+18+k*29.4,y:y-9,width:10,height:9,class:'pin'},map);mk('rect',{x:x+18+k*29.4,y:y+h,width:10,height:9,class:'pin'},map)}}
+    if(id==='mem'){for(let k=0;k<14;k++)mk('rect',{x:x+14+k*19.4,y:y+h,width:11,height:10,fill:'var(--trace)'},map)}
+    const r=mk('rect',{x,y,width:w,height:h,rx:box?12:8,class:'cmp'+(box?' box':'')+(hw?' h':''),id:'c_'+id},map);if(!box){r.dataset.id=id;if(!hw)mk('rect',{x,y,width:w,height:5,rx:2.5,fill:LC[layer],'pointer-events':'none'},map)}
+    if(box)mk('text',{x:x+14,y:y+21,class:'cn c'+(hw?' h':''),'dominant-baseline':'central'},map).textContent=n;
+    else{const fs=Math.min(17,(w-14)/Math.max(1,tw(n,1)));mk('text',{x:x+w/2,y:y+(h>90?28:22),class:'cn'+(hw?' h':''),'text-anchor':'middle','dominant-baseline':'central','font-size':fs},map).textContent=n;
+      mk('text',{x:x+w/2,y:y+h-(h>90?24:15),class:'cv'+(hw?' h':''),'text-anchor':'middle','dominant-baseline':'central',id:'v_'+id},map)}}
+  /* 主存内部的分区示意 */
+  {const [x,y,w,h]=MP.mem;[['内核区：中断向量表、页表、PCB、内核代码','#ffd27a'],['P1 的页框','#9be8bf'],['P2 的页框','#9be8bf'],['P3 的页框','#9be8bf'],['空闲页框','#aeb9c7']].forEach(([t,c],i)=>{mk('rect',{x:x+14,y:y+52+i*46,width:w-28,height:38,rx:5,fill:'none',stroke:c,'stroke-width':1.5,'pointer-events':'none',opacity:.8},map);mk('text',{x:x+w/2,y:y+71+i*46,'font-size':Math.min(13,(w-40)/tw(t,1)),fill:c,'text-anchor':'middle','dominant-baseline':'central'},map).textContent=t})}
+  ['mar','mmu'].forEach(k=>tap(k,0));tap('mdr',1);tap('cu',2,-40);tap('cache',1,30);tap('mem',0,-60);tap('mem',1,0);tap('mem',2,60);
+  ['pic','tmr'].forEach(k=>{});[['dma',0,-50],['dma',1,0],['dma',2,50]].forEach(([k,b,dx])=>{const m=MP[k],x=m[0]+m[2]/2+dx;P(`M${x},${m[1]+m[3]} V${m[1]+m[3]+10} H${1232-b*8} V${BUS[b][0]}`,'wire',map,{stroke:BUS[b][2]});mk('circle',{cx:1232-b*8,cy:BUS[b][0],r:5,fill:BUS[b][2]},map)});
+  for(const id in MP){if(MP[id][5]==='c')continue;const n=LS.filter(l=>vis(l)&&l.at.includes(id)).length;if(!n)continue;const [x,y,w]=MP[id];mk('circle',{cx:x+w-13,cy:y+15,r:10,class:'bdg','pointer-events':'none'},map);mk('text',{x:x+w-13,y:y+15,class:'bdgt'},map).textContent=n}
+  const tok=mk('g',{id:'tok',opacity:0,'pointer-events':'none'},map);mk('circle',{r:18,fill:'none',stroke:'#ff9d00','stroke-width':2.5,class:'ring'},tok);mk('circle',{r:11,fill:'#ff9d00',stroke:'#fff','stroke-width':2.5},tok);
+  const tl=mk('g',{id:'tokl'},tok);mk('rect',{id:'tokb',y:-48,height:30,rx:15,fill:'#ff9d00',stroke:'#fff','stroke-width':2},tl);mk('text',{id:'tokt',y:-33,'font-size':15,'font-weight':700,fill:'#fff','text-anchor':'middle','dominant-baseline':'central'},tl);
+  applyVB()}
+/* 令牌走线：经过系统总线的传送沿总线走 */
+const CORE=['mar','mdr','cu','pc','ir','acc','alu','reg','psw','mmu','cache','tlb'],ONBUS=['mem','dma','disk','nic','kbd','scr'];
+function route(a,b){const A=ctr(a),B=ctr(b);const viaBus=(CORE.includes(a)&&ONBUS.includes(b))||(CORE.includes(b)&&ONBUS.includes(a))||(ONBUS.includes(a)&&ONBUS.includes(b)&&!(['disk','kbd','scr','nic'].includes(a)&&b==='dma')&&!(['disk','kbd','scr','nic'].includes(b)&&a==='dma'));
+  if(!viaBus)return[A,B];const y=BUS[1][0];return[A,[A[0],y],[B[0],y],B]}
+function tweenPath(g,pts,dur){const tok=Symbol();g._t=tok;const seg=[0];for(let i=1;i<pts.length;i++)seg.push(seg[i-1]+Math.hypot(pts[i][0]-pts[i-1][0],pts[i][1]-pts[i-1][1]));const L=seg[seg.length-1]||1;
+  const put=p=>g.setAttribute('transform',`translate(${p[0].toFixed(1)},${p[1].toFixed(1)})`);if(RM){put(pts[pts.length-1]);return}const t0=performance.now();
+  (function f(now){if(g._t!==tok)return;const d=ease(Math.min(1,(now-t0)/dur))*L;let i=1;while(i<pts.length-1&&seg[i]<d)i++;const k=(d-seg[i-1])/((seg[i]-seg[i-1])||1);put([pts[i-1][0]+(pts[i][0]-pts[i-1][0])*k,pts[i-1][1]+(pts[i][1]-pts[i-1][1])*k]);d<L&&requestAnimationFrame(f)})(t0)}
+const ease=k=>k<.5?4*k*k*k:1-Math.pow(-2*k+2,3)/2;
+function applyVB(){map.setAttribute('viewBox',`${vb.x} ${vb.y} ${vb.w} ${vb.h}`)}
+let flyTok=0;
+function fly(to,dur=800){const tok=++flyTok,from={...vb};if(RM||!dur){vb=to;applyVB();return}const t0=performance.now();(function f(now){if(tok!==flyTok)return;const k=ease(Math.min(1,(now-t0)/dur));vb={x:from.x+(to.x-from.x)*k,y:from.y+(to.y-from.y)*k,w:from.w+(to.w-from.w)*k,h:from.h+(to.h-from.h)*k};applyVB();k<1&&requestAnimationFrame(f)})(t0)}
+function boxFor(ids,minW=760){if(!ids.length)return{x:0,y:0,w:W0,h:H0};let x0=1e9,y0=1e9,x1=-1e9,y1=-1e9;ids.forEach(id=>{const m=MP[id];if(!m)return;x0=Math.min(x0,m[0]);y0=Math.min(y0,m[1]);x1=Math.max(x1,m[0]+m[2]);y1=Math.max(y1,m[1]+m[3])});
+  const r=map.getBoundingClientRect(),ar=(r.height||600)/(r.width||1000);let w=Math.max(minW,(x1-x0)+200),h=Math.max(w*ar,(y1-y0)+220);w=h/ar;if(w>=W0*1.02)return{x:0,y:0,w:W0,h:H0};return{x:(x0+x1)/2-w/2,y:(y0+y1)/2-h/2+10,w,h}}
+function toSvg(cx,cy){const r=map.getBoundingClientRect();const sc=Math.max(vb.w/r.width,vb.h/r.height);const ox=(r.width-vb.w/sc)/2,oy=(r.height-vb.h/sc)/2;return[vb.x+(cx-r.left-ox)*sc,vb.y+(cy-r.top-oy)*sc]}
+function zoomAt(px,py,f){flyTok++;const nw=Math.min(W0*1.2,Math.max(360,vb.w*f)),k=nw/vb.w;vb={x:px-(px-vb.x)*k,y:py-(py-vb.y)*k,w:nw,h:vb.h*k};applyVB()}
+map.addEventListener('wheel',e=>{e.preventDefault();const [x,y]=toSvg(e.clientX,e.clientY);zoomAt(x,y,Math.exp(e.deltaY*.0018))},{passive:false});
+const ptr=new Map();let moved=0,pinch=null;
+map.addEventListener('pointerdown',e=>{map.setPointerCapture(e.pointerId);ptr.set(e.pointerId,[e.clientX,e.clientY]);moved=0;flyTok++;if(ptr.size===2){const [a,b]=[...ptr.values()];pinch=Math.hypot(a[0]-b[0],a[1]-b[1])}});
+map.addEventListener('pointermove',e=>{if(!ptr.has(e.pointerId))return;const p=ptr.get(e.pointerId);ptr.set(e.pointerId,[e.clientX,e.clientY]);
+  if(ptr.size===2&&pinch){const [a,b]=[...ptr.values()],d=Math.hypot(a[0]-b[0],a[1]-b[1]);const [x,y]=toSvg((a[0]+b[0])/2,(a[1]+b[1])/2);zoomAt(x,y,pinch/d);pinch=d;moved=99;return}
+  const r=map.getBoundingClientRect(),sc=Math.max(vb.w/r.width,vb.h/r.height),dx=e.clientX-p[0],dy=e.clientY-p[1];moved+=Math.abs(dx)+Math.abs(dy);if(moved>5){map.classList.add('drag');vb.x-=dx*sc;vb.y-=dy*sc;applyVB()}});
+function up(e){if(!ptr.has(e.pointerId))return;ptr.delete(e.pointerId);if(ptr.size<2)pinch=null;map.classList.remove('drag');
+  if(moved<=5&&e.type==='pointerup'){const el=document.elementFromPoint(e.clientX,e.clientY);if(el&&el.dataset&&el.dataset.id)openComp(el.dataset.id)}}
+map.addEventListener('pointerup',up);map.addEventListener('pointercancel',up);
+$('#zIn').onclick=()=>zoomAt(vb.x+vb.w/2,vb.y+vb.h/2,.7);$('#zOut').onclick=()=>zoomAt(vb.x+vb.w/2,vb.y+vb.h/2,1.4);$('#zFit').onclick=()=>fly({x:0,y:0,w:W0,h:H0});
+
+/* ===== 播放 ===== */
+let scene=null,timer=null,used=[];
+function clearMap(){map.classList.remove('playing');map.querySelectorAll('.cmp').forEach(r=>r.classList.remove('hot','used','sel'));map.querySelectorAll('.cv').forEach(t=>t.textContent='');$('#tok').setAttribute('opacity',0)}
+function nSteps(l){return isFlow(l)?l.steps.length:scene.caps.length}
+function capOf(l,i){return isFlow(l)?l.steps[i].cap:scene.caps[i]}
+function setStep(i,opt={}){const l=LS[st.cur];const n=nSteps(l);st.step=Math.max(0,Math.min(n-1,i));i=st.step;
+  if(isFlow(l)){const v={...(l.init||{})};for(let k=0;k<=i;k++)Object.assign(v,l.steps[k].set||{});
+    map.querySelectorAll('.cv').forEach(t=>{const nv=v[t.id.slice(2)]||'';if(t.textContent!==nv){t.textContent=nv;const id=t.id.slice(2),w=MP[id][2];t.setAttribute('font-size',Math.min(14.5,(w-12)/Math.max(1,tw(nv,1))));t.classList.remove('flash');if(nv){void t.getBBox();t.classList.add('flash')}}});
+    const s=l.steps[i],hl=s.hl||[];map.querySelectorAll('.cmp').forEach(r=>{const id=r.id.slice(2);r.classList.toggle('hot',hl.includes(id)&&MP[id][5]!=='c');r.classList.toggle('used',used.includes(id))});
+    if(!opt.keep)fly(boxFor([...hl,...(s.mv?[s.mv[0],s.mv[1]]:[])],900),800);const tok=$('#tok');if(s.mv){const a=ctr(s.mv[0]),b=ctr(s.mv[1]),txt=s.mv[2]||'';tok.setAttribute('opacity',1);$('#tokt').textContent=txt;const w=tw(txt,15)+26;$('#tokb').setAttribute('width',w);$('#tokb').setAttribute('x',-w/2);
+      const pts=route(s.mv[0],s.mv[1]);tok._t=null;tok.setAttribute('transform',`translate(${a[0]},${a[1]})`);setTimeout(()=>tweenPath(tok,pts,pts.length>2?1700:1200),150)}else tok.setAttribute('opacity',0)}
+  else{$('#sv').querySelectorAll('[data-s]').forEach(el=>el.classList.toggle('on',+el.dataset.s<=i+1));scene.onStep&&scene.onStep(i,$('#sv'))}
+  $('#capn').textContent=`${i+1}/${n}`;$('#capt').textContent=capOf(l,i);$('#cNext').textContent=i>=n-1?'下一个 ▶':'下一步 ▶';
+  document.querySelectorAll('.sp').forEach((b,k)=>{b.classList.toggle('on',k===i);b.classList.toggle('done',k<i);if(k===i&&st.view==='lesson')b.scrollIntoView({block:'nearest',behavior:RM?'auto':'smooth'})})}
+function auto(){clearTimeout(timer);if(!st.play)return;const l=LS[st.cur];timer=setTimeout(function f(){if(!st.play)return;if(st.step<nSteps(l)-1){setStep(st.step+1);timer=setTimeout(f,isFlow(l)?5200:2600)}else nextLesson()},isFlow(l)?5200:2600)}
+function nextLesson(d=1){const L=LS.filter(vis),k=L.findIndex(x=>x.id===st.cur),n=L[k+d];if(n)openLesson(n.id);else setPlay(false)}
+function next(){if(st.step<nSteps(LS[st.cur])-1)setStep(st.step+1);else nextLesson()}
+$('#cNext').onclick=()=>{setPlay(false);next()};$('#cPrev').onclick=()=>{setPlay(false);setStep(st.step-1)};$('#sv').onclick=()=>{setPlay(false);next()};
+
+/* ===== 面板 ===== */
+const card=$('#card');
+function lessonBtn(l,showK=true){return `<button data-l="${l.id}" class="lv${l.lv}"><span class="st">${l.lv===3?'★':''}</span><span>${esc(l.t)}${READ.has(l.t)?' <span class="rd">✓</span>':''}</span>${showK?`<span class="k">${isFlow(l)?'大图演示':'图解'}</span>`:''}</button>`}
+function stopAll(){clearTimeout(timer);clearMap();$('#inset').hidden=true;$('#capbar').hidden=true;$('#hint').hidden=false}
+function home(){st.view='home';st.cur=-1;stopAll();fly({x:0,y:0,w:W0,h:H0});
+  let h=`<div class="kick">408 整机地图</div><h2 class="ttl">一台计算机里，知识点都住在哪</h2>
+  <p class="desc">左边是一台完整的机器。下面那块绿色的是主板：CPU、主存和各个 I/O 接口挂在系统总线上，设备通过中断请求线找 CPU。上面是把主存“放大”后看到的东西：操作系统内核和各个用户进程。红色虚线是用户态和核心态的边界。<b style="color:var(--fg)">点任意一个部件</b>，就能看到它是什么、它身上有哪些知识点。每个流程都在这张大图上一步步演示，数据从哪来、到哪去、谁改了什么状态，都看得见。</p>
+  <div class="sec"><h3>建议的学习顺序</h3><p class="desc">先看“中断与系统调用”，它是理解进程切换、缺页、I/O 的共同基础。</p></div>`;
+  GROUPS.forEach((g,gi)=>{const L=LS.filter(l=>l.g===gi&&vis(l));if(!L.length)return;h+=`<div class="gh">${g}　${L.length}</div><div class="ll">${L.map(l=>lessonBtn(l)).join('')}</div>`});
+  show(h)}
+function openComp(id){if(MP[id][5]==='c')return;setPlay(false);st.view='comp';st.comp=id;st.cur=-1;stopAll();const m=MP[id];map.querySelector('#c_'+id).classList.add('sel');fly(boxFor([id],900));
+  const L=LS.filter(l=>vis(l)&&l.at.includes(id)),L2=LS.filter(l=>vis(l)&&!l.at.includes(id)&&isFlow(l)&&l.steps.some(s=>(s.hl||[]).includes(id)));
+  let h=`<button class="back" id="bk">← 返回总图</button><div class="kick">${{u:'用户空间',k:'操作系统内核',h:'硬件'}[m[6]]}</div><h2 class="ttl">${esc(m[4])}</h2><p class="desc">${esc(m[7])}</p>`;
+  if(L.length)h+=`<div class="sec"><h3>这个部件上的知识点</h3><div class="ll">${L.map(l=>lessonBtn(l)).join('')}</div></div>`;
+  if(L2.length)h+=`<div class="sec"><h3 class="m">它还参与了这些流程</h3><div class="ll">${L2.map(l=>lessonBtn(l)).join('')}</div></div>`;
+  if(!L.length&&!L2.length)h+=`<div class="sec"><p class="desc">这个部件暂时还没有单独的知识点。</p></div>`;
+  show(h);$('#bk').onclick=home}
+function openLesson(id){const l=LS[id];st.view='lesson';st.cur=id;clearTimeout(timer);clearMap();$('#hint').hidden=true;$('#capbar').hidden=false;
+  if(isFlow(l)){used=[...new Set(l.steps.flatMap(s=>[...(s.hl||[]),...(s.mv?[s.mv[0],s.mv[1]]:[])]))];map.classList.add('playing');$('#inset').hidden=true}
+  else{scene=T[l.a.type](l.a);$('#sv').innerHTML=DEFS+scene.svg;$('#inset').hidden=false;$('#ih').textContent='图解 · 位置：'+l.at.map(k=>MP[k][4]).join(' · ');used=l.at;l.at.forEach(k=>map.querySelector('#c_'+k).classList.add('sel'));fly({x:0,y:0,w:W0,h:H0},600)}
+  const n=nSteps(l);let steps='';for(let i=0;i<n;i++){const s=isFlow(l)?l.steps[i]:{};steps+=`<button class="sp" data-s="${i}"><span class="c">${esc(capOf(l,i))}</span>${s.why?`<span class="w">${esc(s.why)}</span>`:''}${s.trap?`<span class="t">${esc(s.trap)}</span>`:''}</button>`}
+  let h=`<button class="back" id="bk">← 返回${st.comp?'「'+esc(MP[st.comp][4])+'」':'总图'}</button><div class="kick">${GROUPS[l.g]} · ${isFlow(l)?'大图演示':'图解'}</div><h2 class="ttl">${esc(l.t)}</h2><span class="lvtag l${l.lv}">${LV[l.lv]}</span>
+  <div class="acts"><button id="aRe">↻ 从头播放</button><button id="aAll" aria-pressed="${st.all}">展开全部讲解</button><button id="aRead" aria-pressed="${READ.has(l.t)}">${READ.has(l.t)?'✓ 已掌握':'标记已掌握'}</button></div>
+  <div class="sec"><h3>${isFlow(l)?'一步一步看（点任意一步跳过去）':'步骤'}</h3><div class="steps${st.all?' all':''}" id="steps">${steps}</div></div>`;
+  if(l.yl)h+=`<div class="sec"><h3>要点（背这个）</h3><p>${fmt(l.yl)}</p></div>`;
+  if(l.ff)h+=`<div class="sec"><h3 class="j">解题 · 计算</h3><p>${fmt(l.ff)}</p></div>`;
+  if(l.err)h+=`<div class="sec"><h3 class="r">易错</h3><div class="errbox">${fmt(l.err)}</div></div>`;
+  h+=`<div class="sec"><h3 class="b">涉及的部件（点了去看）</h3><div class="ll">${[...new Set([...l.at,...used])].filter(k=>MP[k]&&MP[k][5]!=='c').map(k=>`<button data-c="${k}"><span class="st"></span><span>${esc(MP[k][4])}</span></button>`).join('')}</div></div>`;
+  show(h);
+  $('#bk').onclick=()=>st.comp?openComp(st.comp):home();$('#aRe').onclick=()=>{setStep(0)};$('#aAll').onclick=()=>{st.all=!st.all;$('#steps').classList.toggle('all',st.all);$('#aAll').setAttribute('aria-pressed',st.all)};
+  $('#aRead').onclick=()=>{READ.has(l.t)?READ.delete(l.t):READ.add(l.t);sv_('m408.read',READ);const b=$('#aRead');b.setAttribute('aria-pressed',READ.has(l.t));b.textContent=READ.has(l.t)?'✓ 已掌握':'标记已掌握';counts()};
+  try{localStorage.setItem('m408.cur',l.t)}catch(e){}
+  setStep(0);auto()}
+function show(h){card.classList.remove('anim');card.innerHTML=h;card.classList.toggle('blank',st.blank);card.scrollTop=0;if(!RM){void card.offsetWidth;card.classList.add('anim')}counts()}
+card.addEventListener('click',e=>{const m=e.target.closest('mark');if(m&&st.blank){m.classList.toggle('show');return}
+  const s=e.target.closest('.sp');if(s){setPlay(false);setStep(+s.dataset.s);return}
+  const b=e.target.closest('[data-l]');if(b){setPlay(false);openLesson(+b.dataset.l);return}
+  const c=e.target.closest('[data-c]');if(c)openComp(c.dataset.c)});
+function counts(){$('#nRead').textContent=READ.size;$('#nAll').textContent=LS.length}
+
+/* ===== 工具 ===== */
+const LVB={1:'全部知识点',2:'★★ 重要以上',3:'★★★ 只看必背'};
+function paintLv(){$('#tLv').textContent=LVB[st.minLv];$('#tLv').dataset.lv=st.minLv}
+$('#tLv').onclick=()=>{st.minLv=st.minLv%3+1;try{localStorage.setItem('m408.lv',st.minLv)}catch(e){}paintLv();drawMap();st.comp=null;home()};
+function setBlank(v){st.blank=v;$('#tBlank').setAttribute('aria-pressed',v);card.classList.toggle('blank',v);document.querySelectorAll('.show').forEach(m=>m.classList.remove('show'))}
+$('#tBlank').onclick=()=>setBlank(!st.blank);
+function setPlay(v){st.play=v;$('#tPlay').setAttribute('aria-pressed',v);clearTimeout(timer);if(v){if(st.cur<0)openLesson(LS.filter(vis)[0].id);else auto()}}
+$('#tPlay').onclick=()=>setPlay(!st.play);
+const q=$('#q'),res=$('#res');
+q.addEventListener('input',()=>{const s=q.value.trim();if(!s){res.hidden=true;return}
+  const hl=LS.filter(l=>(l.t+plain(l.yl)+plain(l.err)+(l.steps||[]).map(x=>x.cap+(x.why||'')).join('')).includes(s)).slice(0,10),hc=Object.keys(MP).filter(k=>MP[k][5]!=='c'&&(MP[k][4]+MP[k][7]).includes(s)).slice(0,5);
+  res.innerHTML=(hc.map(k=>`<button data-c="${k}"><small>部件</small>${esc(MP[k][4])}</button>`).join('')+hl.map(l=>`<button data-l="${l.id}"><small>${GROUPS[l.g]}</small>${esc(l.t)}</button>`).join(''))||'<div style="padding:10px;color:var(--muted)">没有找到，换个词试试</div>';res.hidden=false});
+res.addEventListener('pointerdown',e=>{const b=e.target.closest('button');if(!b)return;e.preventDefault();setPlay(false);if(b.dataset.c)openComp(b.dataset.c);else{st.comp=null;if(!vis(LS[+b.dataset.l])){st.minLv=1;paintLv();drawMap()}openLesson(+b.dataset.l)}res.hidden=true;q.value='';q.blur()});
+document.addEventListener('pointerdown',e=>{if(!e.target.closest('.search'))res.hidden=true});
+addEventListener('keydown',e=>{if(e.target.matches('input'))return;
+  if(st.view==='lesson'){if(e.key==='ArrowRight'){e.preventDefault();setPlay(false);next()}else if(e.key==='ArrowLeft'){e.preventDefault();setPlay(false);setStep(st.step-1)}else if(e.key==='Escape'){setPlay(false);st.comp?openComp(st.comp):home()}}
+  if(e.key===' '){e.preventDefault();setPlay(!st.play)}else if(e.key==='b'||e.key==='B')setBlank(!st.blank);else if(e.key==='0')fly({x:0,y:0,w:W0,h:H0})});
+addEventListener('resize',()=>{if(st.view==='home')applyVB()});
+paintLv();drawMap();home();
+</script>
+
+</body></html>
